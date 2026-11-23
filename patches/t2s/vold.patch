@@ -1,0 +1,38 @@
+diff --git a/KeyStorage.cpp b/KeyStorage.cpp
+index 51fc4f6..cc0e1bf 100644
+--- a/KeyStorage.cpp
++++ b/KeyStorage.cpp
+@@ -370,7 +370,7 @@ static KeymasterOperation BeginKeymasterOp(Keymaster& keymaster, const std::stri
+     if (!opHandle) return opHandle;
+ 
+     // If key blob wasn't upgraded, nothing left to do.
+-    // if (!opHandle.getUpgradedBlob()) return opHandle;
++    if (!opHandle.getUpgradedBlob()) return opHandle;
+ 
+     // if (already_upgraded) {
+     //     LOG(ERROR) << "Unexpected case; already-upgraded key " << upgraded_blob_file
+@@ -421,6 +421,10 @@ static bool encryptWithKeymasterKey(Keymaster& keymaster, const std::string& dir
+ static bool decryptWithKeymasterKey(Keymaster& keymaster, const std::string& dir,
+                                     const km::AuthorizationSet& keyParams,
+                                     const std::string& ciphertext, KeyBuffer* message) {
++    if (ciphertext.size() < GCM_NONCE_BYTES + GCM_MAC_BYTES) {
++        LOG(ERROR) << "Truncated encrypted key";
++        return false;
++    }
+     const std::string nonce = ciphertext.substr(0, GCM_NONCE_BYTES);
+     auto bodyAndMac = ciphertext.substr(GCM_NONCE_BYTES);
+     auto opParams = km::AuthorizationSetBuilder()
+diff --git a/MetadataCrypt.cpp b/MetadataCrypt.cpp
+index dd6d880..462d20c 100644
+--- a/MetadataCrypt.cpp
++++ b/MetadataCrypt.cpp
+@@ -111,6 +111,9 @@ static bool read_key(const std::string& metadata_key_dir, const KeyGeneration& g
+     std::string sKey;
+     auto dir = metadata_key_dir + "/key";
+     LOG(INFO) << "metadata_key_dir/key: " << dir;
++    if (!gen.allow_gen) {
++        return retrieveKey(dir, kEmptyAuthentication, key);
++    }
+     if (!MkdirsSync(dir, 0700)) return false;
+     if (!pathExists(dir)) {
+         auto delete_all = android::base::GetBoolProperty(

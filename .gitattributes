@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Keep the supplied port patches byte-for-byte, including unified diff context.
+patches/t2s/*.patch -text -whitespace

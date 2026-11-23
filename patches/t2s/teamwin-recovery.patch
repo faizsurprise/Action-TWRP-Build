@@ -1,0 +1,77 @@
+diff --git a/Android.mk b/Android.mk
+index 383adca..a605594 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -184,6 +184,10 @@ ifeq ($(TW_USES_VENDOR_LIBS),true)
+     LOCAL_CFLAGS += -DUSE_VENDOR_LIBS=1
+ endif
+ 
++ifeq ($(TW_USE_EXYNOS2100_CRYPTO_SERVICES),true)
++    LOCAL_CFLAGS += -DTW_USE_EXYNOS2100_CRYPTO_SERVICES
++endif
++
+ ifeq ($(TW_NO_BIND_SYSTEM),true)
+     LOCAL_CFLAGS += -DTW_NO_BIND_SYSTEM
+ endif
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 2766b4c..8714efe 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -547,7 +547,11 @@ void TWPartitionManager::Setup_Fstab_Partitions(bool Display_Error) {
+ 		Update_System_Details();
+ 		if (Get_Super_Status())
+ 			Setup_Super_Partition();
++#ifdef TW_USE_EXYNOS2100_CRYPTO_SERVICES
++		UnMount_Main_Partitions(!android::base::GetBoolProperty("twrp.exynos2100.crypto.start", false));
++#else
+ 		UnMount_Main_Partitions();
++#endif
+ 	#ifdef AB_OTA_UPDATER
+ 		DataManager::SetValue("tw_active_slot", Get_Active_Slot_Display());
+ 	#endif
+@@ -594,6 +598,15 @@ void TWPartitionManager::Decrypt_Data() {
+ 				Mount_By_Path(Decrypt_Data->Key_Directory, false);
+ 		if (!Decrypt_Data->Key_Directory.empty()) {
+ 			Set_Crypto_Type("file");
++#ifdef TW_USE_EXYNOS2100_CRYPTO_SERVICES
++			if (!Mount_By_Path("/vendor", true) || !Mount_By_Path("/odm", true) ||
++			    !android::base::WaitForProperty("hwservicemanager.ready", "true", std::chrono::seconds(10)) ||
++			    !android::base::SetProperty("twrp.exynos2100.crypto.start", "1") ||
++			    !android::base::WaitForProperty("init.svc.recovery_keymaster", "running", std::chrono::seconds(15))) {
++				LOGERR("Unable to start the Exynos 2100 Keymaster service in recovery\n");
++				return;
++			}
++#endif
+ #ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
+ #ifdef USE_FSCRYPT
+ 			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, TWFunc::Path_Exists(additional_fstab) ? additional_fstab : "")) {
+@@ -2385,14 +2398,14 @@ void TWPartitionManager::Mount_All_Storage(void) {
+ 	}
+ }
+ 
+-void TWPartitionManager::UnMount_Main_Partitions(void) {
++void TWPartitionManager::UnMount_Main_Partitions(bool unmount_vendor) {
+ 	// Unmounts system and data if data is not data/media
+ 	// Also unmounts boot if boot is mountable
+ 	LOGINFO("Unmounting main partitions...\n");
+ 
+ 	TWPartition *Partition = Find_Partition_By_Path ("/vendor");
+ 
+-	if (Partition != NULL) UnMount_By_Path("/vendor", false);
++	if (Partition != NULL && unmount_vendor) UnMount_By_Path("/vendor", false);
+ 	UnMount_By_Path (Get_Android_Root_Path(), true);
+ 	Partition = Find_Partition_By_Path ("/product");
+ 	if (Partition != NULL) UnMount_By_Path("/product", false);
+diff --git a/partitions.hpp b/partitions.hpp
+index 843dfe5..287fd62 100755
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -357,7 +357,7 @@ public:
+ 	int usb_storage_enable(void);                                             // Enable USB storage mode
+ 	int usb_storage_disable(void);                                            // Disable USB storage mode
+ 	void Mount_All_Storage(void);                                             // Mounts all storage locations
+-	void UnMount_Main_Partitions(void);                                       // Unmounts system and data if not data/media and boot if boot is mountable
++	void UnMount_Main_Partitions(bool unmount_vendor = true);
+ 	int Partition_SDCard(void);                                               // Repartitions the sdcard
+ 	TWPartition *Get_Default_Storage_Partition();                             // Returns a pointer to a default storage partition
+ 	int Check_Backup_Cancel();                                                // Returns the value of stop_backup

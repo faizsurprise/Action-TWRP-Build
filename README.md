@@ -1,8 +1,18 @@
-# Use Github Action to compile Recovery
+# TWRP build for Samsung Galaxy S21+ Exynos
 
-- Support TWRP, SHRP compilation and production
+**Recovery Build** targets SM-G996B (`t2s`) on firmware G996BXXSJHZA6. It builds the patched TWRP 3.7.1 source using the minimal TWRP 12.1 manifest on a GitHub-hosted Ubuntu 22.04 x64 runner.
+
+1. Set the repository Actions secret `JHZA6_RECOVERY_URL` to a private HTTPS download of the verified raw JHZA6 recovery image. Use a URL that the runner can fetch directly. The required SHA-256 is `31d3fd5882b57a3fb772991e56ce24c9df51fceb25240237844616b194d1faa7`.
+2. As the repository owner, manually run **Recovery Build** on the default branch. Select **Publish the validated image as an experimental prerelease** if you have permission to redistribute the firmware components included in the output.
+3. Check the run log for disk measurements and validation results. The workflow checks for at least 8 GiB free before sync and again before compilation. Peak disk usage during a complete build still needs measurement on this runner.
+
+Successful publication adds `recovery.img` and `recovery.img.sha256` to GitHub Releases. The workflow checks the partition size, v2 boot layout, staged JHZA6 sections, recovery ramdisk, and any embedded AVB footer. The current device build disables AVB and appends the Samsung `SEANDROIDENFORCE` marker. Device boot, verified-boot acceptance, and decryption are untested.
 
 ---
+
+## Upstream builder documentation
+
+The generic parameters and SSH instructions below apply to the legacy builder workflows.
 
 ## OrangeFox is [here](https://github.com/ZH-XiJun/Action-OFRP-Builder)
 
@@ -13,10 +23,6 @@
 - Added `Recovery Build (Ubuntu 18.04)` in order to make recovery for old version of Android (Kitkat, Lollipop etc.)
 - Optimized the body of releases.
 - ...
-
-**[RECOVERY BUILD](.github/workflows/Recovery%20Build.yml) MAY NOT UP TO DATE SINCE I DONT HAVE ANDROID DEVICE HIGHER THAN ANDROID Q!**
-
----
 
 ## Thanks to
 - All contributors
@@ -120,7 +126,7 @@ cat ssh_host_ed25519_key
    Then select Add secret.
 
 ## Building the Recovery
-#### 9. Click 'Actions-Recovery Build'
+#### 9. Select the legacy workflow for your Android build tree
 ![image](https://user-images.githubusercontent.com/37921907/177915304-8731ed80-1d49-48c9-9848-70d0ac8f2720.png)
 #### 10. Click 'Run workflow' and fill in according to the above 'parameter description'
 ![image](https://user-images.githubusercontent.com/37921907/177915346-71c29149-78fb-4a00-996f-5d84ffc9eb8c.png)

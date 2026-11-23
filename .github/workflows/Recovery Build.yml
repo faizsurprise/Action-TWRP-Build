@@ -3,172 +3,152 @@ name: Recovery Build
 on:
   workflow_dispatch:
     inputs:
-      MANIFEST_URL:
-        description: 'MANIFEST_URL (if want to use SSH keys, use git@github.com:XXXXX)'
-        required: true
-        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp'
-      MANIFEST_BRANCH:
-        description: 'MANIFEST_BRANCH'
-        required: true
-        default: 'twrp-12.1'
-      DEVICE_TREE_URL:
-        description: 'DEVICE_TREE_URL'
-        required: true
-        default: 'https://github.com/ZH-XiJun/twrp_device_coolpad_CP23NV3'
-      DEVICE_TREE_BRANCH:
-        description: 'DEVICE_TREE_BRANCH'
-        required: true
-        default: 'twrp-12.1'
-      DEVICE_PATH:
-        description: 'DEVICE_PATH'
-        required: true
-        default: 'device/coolpad/CP23NV3'
-      COMMON_TREE_URL:
-        description: 'COMMON_TREE_URL (if no common tree, leave blank)'
-        required: false
-      COMMON_PATH:
-        description: 'COMMON_PATH (if no common tree, leave blank)'
-        required: false
-      DEVICE_NAME:
-        description: 'DEVICE_NAME'
-        required: true
-        default: 'CP23NV3'
-      MAKEFILE_NAME:
-        description: 'MAKEFILE_NAME'
-        required: true
-        default: 'twrp_CP23NV3'
-      BUILD_TARGET:
-        description: 'BUILD_TARGET'
-        required: true
-        default: 'vendorboot'
+      publish:
+        description: Publish the validated image as an experimental prerelease
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t2s-recovery-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    if: github.event.repository.owner.id == github.event.sender.id
-    runs-on: ubuntu-latest
+    if: github.event.repository.owner.id == github.event.sender.id && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
     permissions:
       contents: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEVICE_PATH: device/samsung/exynos2100
+      USE_CCACHE: "false"
+      CCACHE_DISABLE: "1"
+
     steps:
-    - name: Display Run Parameters
-      run: |
-        echo "::group::User Environment Variables"
-        echo "Manifest URL: ${{ github.event.inputs.MANIFEST_URL }}"
-        echo "Manifest Branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
-        echo "Device Tree URL: ${{ github.event.inputs.DEVICE_TREE_URL }}"
-        echo "Device Tree Branch: ${{ github.event.inputs.DEVICE_TREE_BRANCH }}"
-        echo "Device Path: ${{ github.event.inputs.DEVICE_PATH }}"
-        echo "Device Name: ${{ github.event.inputs.DEVICE_NAME }}"
-        echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
-        echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}.img"
-        echo "::endgroup::"
- 
-    # You might want to Checkout your repo first, but not mandatory
-    - name: Check Out
-      uses: actions/checkout@v3
-    # Cleanup The Actions Workspace Using Custom Composite Run Actions
-    - name: Cleanup
-      uses: rokibhasansagar/slimhub_actions@main
-      # That's it! Now use your normal steps
+      - name: Check out build configuration
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
-    - name: Prepare the environment
-      run: |
-        sudo apt update
-        sudo apt -y upgrade
-        sudo apt -y install gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc ccache lib32readline-dev lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev libwxgtk3.2-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev python3
+      - name: Download and verify private JHZA6 reference
+        env:
+          FIRMWARE_URL: ${{ secrets.JHZA6_RECOVERY_URL }}
+          FIRMWARE_SHA256: 31d3fd5882b57a3fb772991e56ce24c9df51fceb25240237844616b194d1faa7
+        run: |
+          if [[ -z "$FIRMWARE_URL" ]]; then
+            echo "::error::Set the JHZA6_RECOVERY_URL Actions secret to a private HTTPS download for the verified raw reference."
+            exit 1
+          fi
+          reference="$RUNNER_TEMP/jhza6-reference.img"
+          trap 'rm -f -- "$reference"' ERR
+          curl --fail --silent --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout 30 --max-time 600 --max-redirs 5 --max-filesize 67108864 \
+            --output "$reference" --url "$FIRMWARE_URL" || {
+              echo "::error::JHZA6 reference download failed."
+              false
+            }
+          printf '%s  %s\n' "$FIRMWARE_SHA256" "$reference" | sha256sum --check --strict
 
-    - name: Install OpenJDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'zulu'
-        java-version: '8'
+      - name: Prepare Ubuntu x86-64 and reclaim disk space
+        run: |
+          test "$(uname -m)" = x86_64
+          df -h .
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/share/boost /opt/hostedtoolcache/CodeQL /usr/share/swift
+          sudo apt-get update -o APT::Update::Error-Mode=any
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential cpio flex g++-multilib gcc-multilib gperf \
+            lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses-dev \
+            libssl-dev libxml2-utils openssl python3 unzip xsltproc zip zlib1g-dev
+          sudo apt-get clean
+          df -h .
 
-    - name: Setup SSH Keys
-      if: ${{ startsWith(github.event.inputs.MANIFEST_URL, 'git@github.com') || 
-          startsWith(github.event.inputs.DEVICE_TREE_URL, 'git@github.com') ||
-          startsWith(github.event.inputs.COMMON_TREE_URL, 'git@github.com') }}
-      uses: webfactory/ssh-agent@v0.5.4
-      with:
-          ssh-private-key: |
-            ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Set up the minimal TWRP 12.1 manifest
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin" android-source
+          curl --fail --silent --show-error --location \
+            --output "$RUNNER_TEMP/bin/repo" https://storage.googleapis.com/git-repo-downloads/repo
+          chmod +x "$RUNNER_TEMP/bin/repo"
+          printf '%s\n' "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          cd android-source
+          "$RUNNER_TEMP/bin/repo" init --depth=1 --no-clone-bundle --no-use-superproject \
+            --groups=default,-darwin \
+            -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
+          install -D "$GITHUB_WORKSPACE/.github/manifest/t2s.xml" .repo/local_manifests/t2s.xml
 
+      - name: Sync and verify pinned sources
+        working-directory: android-source
+        run: |
+          source "$GITHUB_WORKSPACE/scripts/t2s-disk.sh"
+          check_disk_space "source sync"
+          monitor_disk_space
+          repo sync --current-branch --no-tags --no-clone-bundle --no-use-superproject --fail-fast -j2
+          git -C .repo/manifests rev-parse HEAD
+          # Expand the revision and path in each project shell.
+          # shellcheck disable=SC2016
+          repo forall -e "$DEVICE_PATH" bootable/recovery system/vold -c \
+            'actual=$(git rev-parse HEAD) && printf "%s %s\n" "$REPO_PATH" "$actual" && test "$actual" = "$REPO_RREV"'
 
-    - name: Install repo
-      run: |
-        mkdir ~/bin
-        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-        chmod a+x ~/bin/repo
-        sudo ln -sf ~/bin/repo /usr/bin/repo
-      
-    - name: Initialize repo
-      run: |
-        mkdir workspace
-        cd workspace
-        echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
-        git config --global user.name "Nico170420"
-        git config --global user.email "b170420nc@gmail.com"
-        repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-      id: pwd
-          
-    - name: Repo Sync
-      run: |
-        repo sync -j$(nproc --all) --force-sync
-      working-directory: workspace
-      
-    - name: Clone device tree
-      run: |
-        git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+      - name: Apply port patches and stage JHZA6 components
+        working-directory: android-source
+        run: |
+          patches="$GITHUB_WORKSPACE/patches/t2s"
+          git -C "$DEVICE_PATH" apply --check "$patches/device.patch"
+          git -C bootable/recovery apply --check "$patches/teamwin-recovery.patch"
+          git -C system/vold apply --check "$patches/vold.patch"
+          git -C "$DEVICE_PATH" apply "$patches/device.patch"
+          git -C bootable/recovery apply "$patches/teamwin-recovery.patch"
+          git -C system/vold apply "$patches/vold.patch"
+          # The pinned hook enables missing dependencies and auto-applies a different recovery patch.
+          rm -- "$DEVICE_PATH/vendorsetup.sh"
+          reference="$RUNNER_TEMP/jhza6-reference.img"
+          trap 'rm -f -- "$reference"' EXIT
+          python3 "$GITHUB_WORKSPACE/scripts/stage-firmware.py" "$reference" "$DEVICE_PATH"
 
-    - name: Clone common tree
-      if: |
-        github.event.inputs.COMMON_TREE_URL != null
-        && github.event.inputs.COMMON_PATH != null
-      run: |
-        git clone ${{ github.event.inputs.COMMON_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.COMMON_PATH }}
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+      - name: Build twrp_t2s-eng recoveryimage
+        working-directory: android-source
+        run: |
+          source "$GITHUB_WORKSPACE/scripts/t2s-disk.sh"
+          check_disk_space "recovery compilation"
+          monitor_disk_space
+          unset ALLOW_MISSING_DEPENDENCIES
+          source build/envsetup.sh
+          unset ALLOW_MISSING_DEPENDENCIES
+          check_product twrp_t2s
+          lunch twrp_t2s-eng
+          mka recoveryimage -j2
 
-    - name: Check Build Tree
-      uses: haya14busa/action-cond@v1
-      id: buildtree
-      with:
-        cond: ${{ github.event.inputs.MANIFEST_BRANCH == 'twrp-11' || github.event.inputs.MANIFEST_BRANCH == 'twrp-12.1' }}
-        if_true: twrp
-        if_false: omni
+      - name: Validate image and generate SHA-256
+        working-directory: android-source
+        run: |
+          image=out/target/product/t2s/recovery.img
+          python3 "$GITHUB_WORKSPACE/scripts/validate-t2s-recovery.py" \
+            "$image" "$DEVICE_PATH/t2s" external/avb/avbtool.py | tee "$RUNNER_TEMP/t2s-image-checks.txt"
+          cat "$RUNNER_TEMP/t2s-image-checks.txt" >> "$GITHUB_STEP_SUMMARY"
+          cd "$(dirname "$image")"
+          sha256sum recovery.img > recovery.img.sha256
+          sha256sum --check --strict recovery.img.sha256
 
-    - name: Sync Device Dependencies
-      run: |
-        bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies
-        repo sync -j$(nproc --all)
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
-      continue-on-error: true
-
-    - name: Set Swap Space
-      uses: pierotofy/set-swap-space@master
-      with:
-        swap-size-gb: 12
-
-    - name: Building recovery
-      run: |
-        source build/envsetup.sh
-        export ALLOW_MISSING_DEPENDENCIES=true
-        lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && mka ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
-
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-
-    - name: Upload to Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: | 
-          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/${{ github.event.inputs.BUILD_TARGET }}.img
-          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.zip
-          workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*vendor*.img
-        name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
-        tag_name: ${{ github.run_id }}
-        body: |
-          Manifest: ${{ github.event.inputs.MANIFEST_BRANCH }}
-          Device: ${{ github.event.inputs.DEVICE_NAME }}
-          Target: ${{ github.event.inputs.BUILD_TARGET }}.img
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish experimental prerelease
+        if: inputs.publish
+        working-directory: android-source/out/target/product/t2s
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          sha256sum --check --strict recovery.img.sha256
+          notes="$RUNNER_TEMP/t2s-release-notes.md"
+          {
+            printf '%s\n\n' 'Experimental TWRP recovery for SM-G996B (t2s) and G996BXXSJHZA6.'
+            printf '%s\n\n' 'Static validation only. Device boot, verified-boot acceptance, and decryption are untested.'
+            cat "$RUNNER_TEMP/t2s-image-checks.txt"
+          } > "$notes"
+          gh release create "t2s-jhza6-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            recovery.img recovery.img.sha256 --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title 'Experimental TWRP 3.7.1 for SM-G996B / JHZA6' --notes-file "$notes"

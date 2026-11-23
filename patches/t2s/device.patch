@@ -1,0 +1,239 @@
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index 57dfab2..990384f 100755
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -62,11 +62,13 @@ TARGET_USERIMAGES_USE_F2FS := true
+ 
+ # Encryption
+ BOARD_USES_METADATA_PARTITION := true
++ifneq ($(PRODUCT_DEVICE),t2s)
+ PLATFORM_VERSION := 99.87.36
+ PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
+ PLATFORM_SECURITY_PATCH := 2099-12-31
+ BOOT_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
+ VENDOR_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
++endif
+ 
+ # Recovery
+ TARGET_RECOVERY_PIXEL_FORMAT := "ABGR_8888"
+diff --git a/device.mk b/device.mk
+index 453a6d8..577635f 100755
+--- a/device.mk
++++ b/device.mk
+@@ -35,5 +35,9 @@ PRODUCT_PACKAGES += \
+ TARGET_SCREEN_WIDTH := 1080
+ TARGET_SCREEN_HEIGHT := 2400
+ 
+-# Manual workaround for common tree
+-PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,$(DEVICE_PATH)/recovery/root,recovery/root)
+\ No newline at end of file
++# The t2s uses a different set of hardware security interfaces.
++recovery_files := $(call find-copy-subdir-files,*,$(DEVICE_PATH)/recovery/root,recovery/root)
++ifeq ($(PRODUCT_DEVICE),t2s)
++recovery_files := $(filter-out %:recovery/root/vendor/etc/vintf/manifest.xml %:recovery/root/system/bin/postrecoveryboot.sh %:recovery/root/system/etc/twrp.flags,$(recovery_files))
++endif
++PRODUCT_COPY_FILES += $(recovery_files)
+diff --git a/recovery/root/system/bin/postrecoveryboot.sh b/recovery/root/system/bin/postrecoveryboot.sh
+index 7ed1f9d..e6a9a9e 100644
+--- a/recovery/root/system/bin/postrecoveryboot.sh
++++ b/recovery/root/system/bin/postrecoveryboot.sh
+@@ -13,6 +13,11 @@
+ # limitations under the License.
+ #
+ 
++# Keep the boot image intact during t2s recovery development.
++if [ "$(getprop ro.product.device)" = t2s ]; then
++  exit 0
++fi
++
+ mkdir -p "/tmp/vendor";
+ mount -o ro "/dev/block/mapper/vendor" "/tmp/vendor";
+ 
+@@ -38,4 +43,4 @@ fi;
+ umount "/tmp/vendor";
+ rm -r "/tmp/vendor";
+ 
+-exit 0;
+\ No newline at end of file
++exit 0;
+diff --git a/t2s/BoardConfig.mk b/t2s/BoardConfig.mk
+index a6599c4..bea588e 100644
+--- a/t2s/BoardConfig.mk
++++ b/t2s/BoardConfig.mk
+@@ -19,11 +19,23 @@ BOARD_GROUP_BASIC_SIZE := 11425284096
+ BOARD_GROUP_BASIC_PARTITION_LIST := system odm product vendor
+ 
+ BOARD_PARTITION_LIST := $(call to-upper, $(BOARD_GROUP_BASIC_PARTITION_LIST))
+-$(foreach p, $(BOARD_PARTITION_LIST), $(eval BOARD_$(p)IMAGE_FILE_SYSTEM_TYPE := f2fs))
++$(foreach p, $(BOARD_PARTITION_LIST), $(eval BOARD_$(p)IMAGE_FILE_SYSTEM_TYPE := ext4))
+ $(foreach p, $(BOARD_PARTITION_LIST), $(eval TARGET_COPY_OUT_$(p) := $(call to-lower, $(p))))
+ 
+ # Display
+ TW_MAX_BRIGHTNESS := 561
+ TW_DEFAULT_BRIGHTNESS := 255
+ 
+-include $(DEVICE_PATH)/BoardConfig.mk
+\ No newline at end of file
++include $(DEVICE_PATH)/BoardConfig.mk
++
++BOARD_KERNEL_CMDLINE := $(filter-out androidboot.selinux=permissive,$(BOARD_KERNEL_CMDLINE))
++BOARD_MKBOOTIMG_ARGS := $(subst --os_version 14.0.0,--os_version 11.0.0,$(BOARD_MKBOOTIMG_ARGS))
++
++TW_INCLUDE_CRYPTO := true
++TW_USES_VENDOR_LIBS := true
++TW_USE_EXYNOS2100_CRYPTO_SERVICES := true
++
++# Match the DTB load address and kernel base in the JHZA6 recovery header.
++BOARD_KERNEL_BASE := 0x80000000
++BOARD_MKBOOTIMG_ARGS := $(subst --dtb_offset 0x100000000,--dtb_offset 0x0,$(BOARD_MKBOOTIMG_ARGS))
++TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/t2s/recovery.fstab
+diff --git a/t2s/device.mk b/t2s/device.mk
+index 8f49f8f..46028c8 100644
+--- a/t2s/device.mk
++++ b/t2s/device.mk
+@@ -7,6 +7,15 @@
+ 
+ $(call inherit-product, $(DEVICE_PATH)/device.mk)
+ 
++PRODUCT_COPY_FILES += \
++    $(DEVICE_PATH)/t2s/recovery/init.exynos2100.crypto.rc:recovery/root/system/etc/init/init.exynos2100.crypto.rc \
++    $(DEVICE_PATH)/t2s/recovery/manifest.xml:recovery/root/vendor/etc/vintf/manifest.xml
++
+ # Screen
+ TARGET_SCREEN_WIDTH := 1080
+-TARGET_SCREEN_HEIGHT := 2400
+\ No newline at end of file
++TARGET_SCREEN_HEIGHT := 2400
++
++PRODUCT_COPY_FILES += $(DEVICE_PATH)/t2s/recovery/twrp.flags:recovery/root/system/etc/twrp.flags
++
++# Use the module set, load order and touchscreen firmware from the matching recovery.
++PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,$(DEVICE_PATH)/t2s/jhza6-root,recovery/root)
+diff --git a/t2s/recovery.fstab b/t2s/recovery.fstab
+new file mode 100644
+index 0000000..8f50d6d
+--- /dev/null
++++ b/t2s/recovery.fstab
+@@ -0,0 +1,13 @@
++# Android fstab file.
++#<src>                  <mnt_point>         <type>    <mnt_flags and options>                               <fs_mgr_flags>
++# The filesystem that contains the filesystem checker binary (typically /system) cannot
++# specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
++
++system					/system		ext4	ro			wait,logical,first_stage_mount
++vendor					/vendor		ext4	ro			wait,logical,first_stage_mount
++product					/product	ext4	ro			wait,logical,first_stage_mount
++odm					    /odm		  ext4	ro			wait,logical,first_stage_mount
++
++/dev/block/by-name/metadata	/metadata	ext4	noatime,nosuid,nodev,noauto_da_alloc,discard,journal_checksum,data=ordered,errors=panic,sync	wait,formattable,first_stage_mount,check
++/dev/block/by-name/userdata	/data	f2fs	noatime,nosuid,nodev,discard,usrquota,grpquota,fsync_mode=nobarrier,reserve_root=32768,resgid=5678,inlinecrypt	latemount,wait,check,fileencryption=aes-256-xts:aes-256-cts:v2,quota,reservedsize=128M,checkpoint=fs,fscompress,length=-20480,keydirectory=/metadata/vold/metadata_encryption
++/dev/block/by-name/misc /misc               emmc    defaults        defaults,first_stage_mount
+diff --git a/t2s/recovery/init.exynos2100.crypto.rc b/t2s/recovery/init.exynos2100.crypto.rc
+new file mode 100644
+index 0000000..46aaf4a
+--- /dev/null
++++ b/t2s/recovery/init.exynos2100.crypto.rc
+@@ -0,0 +1,42 @@
++on property:twrp.exynos2100.crypto.start=1
++    mkdir /mnt/vendor 0755 root root
++    mkdir /mnt/vendor/efs 0755 root root
++    mount ext4 /dev/block/by-name/efs /mnt/vendor/efs ro nosuid nodev noexec noload
++    mkdir /dev/socket/iwt 0770 system system
++    mkdir /dev/socket/iwt/ca 0770 system system
++    start recovery_tzdaemon
++
++on property:twrp.exynos2100.crypto.start=1 && property:vendor.tzdaemon=Ready
++    setprop vendor.TEEGRIS.loaded true
++    write /proc/iccc_ready 1
++    start recovery_tzts_daemon
++
++on property:twrp.exynos2100.crypto.start=1 && property:vendor.tzts_daemon=Ready
++    start recovery_keymaster
++    start recovery_gatekeeper
++
++service recovery_tzdaemon /vendor/bin/tzdaemon
++    user system
++    group system readproc
++    seclabel u:r:recovery:s0
++    disabled
++
++service recovery_tzts_daemon /vendor/bin/tzts_daemon
++    user system
++    group system
++    seclabel u:r:recovery:s0
++    disabled
++
++service recovery_keymaster /vendor/bin/hw/android.hardware.keymaster@4.0-service
++    interface android.hardware.keymaster@4.0::IKeymasterDevice default
++    user system
++    group system drmrpc
++    seclabel u:r:recovery:s0
++    disabled
++
++service recovery_gatekeeper /vendor/bin/hw/android.hardware.gatekeeper@1.0-service
++    interface android.hardware.gatekeeper@1.0::IGatekeeper default
++    user system
++    group system 5678
++    seclabel u:r:recovery:s0
++    disabled
+diff --git a/t2s/recovery/manifest.xml b/t2s/recovery/manifest.xml
+new file mode 100644
+index 0000000..e6deb8f
+--- /dev/null
++++ b/t2s/recovery/manifest.xml
+@@ -0,0 +1,17 @@
++<manifest version="1.0" type="device">
++    <hal format="hidl">
++        <name>android.hardware.keymaster</name>
++        <transport>hwbinder</transport>
++        <fqname>@4.0::IKeymasterDevice/default</fqname>
++    </hal>
++    <hal format="hidl">
++        <name>android.hardware.gatekeeper</name>
++        <transport>hwbinder</transport>
++        <fqname>@1.0::IGatekeeper/default</fqname>
++    </hal>
++    <hal format="hidl">
++        <name>android.hardware.weaver</name>
++        <transport>hwbinder</transport>
++        <fqname>@1.0::IWeaver/default</fqname>
++    </hal>
++</manifest>
+diff --git a/t2s/recovery/twrp.flags b/t2s/recovery/twrp.flags
+new file mode 100644
+index 0000000..8fa3a3b
+--- /dev/null
++++ b/t2s/recovery/twrp.flags
+@@ -0,0 +1,32 @@
++# mount point	fstype		device	device2					flags
++# Logical partitions
++system		/system		ext4						wait,logical,first_stage_mount
++vendor		/vendor		ext4						wait,logical,first_stage_mount
++product		/product	ext4						wait,logical,first_stage_mount
++odm		    /odm		  ext4						wait,logical,first_stage_mount
++
++# Symlinked partitions
++/system_image	emmc		/dev/block/mapper/system		flags=backup=0;flashimg;display="System Image"
++/vendor_image	emmc		/dev/block/mapper/vendor		flags=backup=0;flashimg;display="Vendor Image"
++/product_image	emmc		/dev/block/mapper/product		flags=backup=0;flashimg;display="Product Image"
++/odm_image	emmc		/dev/block/mapper/odm		flags=backup=0;flashimg;display="Odm Image"
++
++# Physical partitions
++/metadata	ext4		/dev/block/by-name/metadata		flags=backup=1;display="Metadata"
++/boot		emmc		/dev/block/by-name/boot		flags=backup=1;flashimg;display="Boot"
++/recovery	emmc		/dev/block/by-name/recovery		flags=backup=1;flashimg;display="Recovery"
++/data		f2fs		/dev/block/by-name/userdata		flags=length=-20480
++/cache		ext4		/dev/block/by-name/cache		flags=backup=1;display="Cache"
++/efs		ext4		/dev/block/by-name/efs		flags=backup=1;display="EFS"
++/sec_efs	ext4		/dev/block/by-name/sec_efs		flags=backup=1;display="Sec EFS"
++/modem		emmc		/dev/block/by-name/radio		flags=backup=1;display="Modem"
++/dtbo		emmc		/dev/block/by-name/dtbo		flags=backup=1;flashimg;display="Dtbo"
++/cp_debug	emmc		/dev/block/by-name/cp_debug		flags=backup=1;display="CP Debug"
++/param		emmc		/dev/block/by-name/param		flags=backup=1;display="Param"
++/optics_image	emmc		/dev/block/by-name/optics		flags=backup=1;flashimg;display="Optics Image"
++/prism_image	emmc		/dev/block/by-name/prism		flags=backup=1;flashimg;display="Prism Image"
++/vbmeta_system	emmc		/dev/block/by-name/vbmeta_system
++/vendor_boot	emmc		/dev/block/by-name/vendor_boot	flags=backup=1;flashimg;display="Vendor Boot"
++
++# Removable storage
++/usb-otg	auto		/dev/block/sdf1	/dev/block/sdf			flags=display="USB-OTG";storage;wipeingui;removable
