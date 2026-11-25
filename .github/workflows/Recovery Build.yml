@@ -38,21 +38,36 @@ jobs:
 
       - name: Download and verify private JHZA6 reference
         env:
+          # Preferred: a single .img asset in the private release tagged jhza6-reference.
+          # The read-only PAT must be restricted to faizsurprise/t2s-jhza6-private.
+          PRIVATE_RELEASE_TOKEN: ${{ secrets.JHZA6_PRIVATE_READ_TOKEN }}
+          # Backwards-compatible alternative; must be a direct HTTPS download URL.
           FIRMWARE_URL: ${{ secrets.JHZA6_RECOVERY_URL }}
           FIRMWARE_SHA256: 31d3fd5882b57a3fb772991e56ce24c9df51fceb25240237844616b194d1faa7
         run: |
-          if [[ -z "$FIRMWARE_URL" ]]; then
-            echo "::error::Set the JHZA6_RECOVERY_URL Actions secret to a private HTTPS download for the verified raw reference."
-            exit 1
-          fi
+          set -euo pipefail
           reference="$RUNNER_TEMP/jhza6-reference.img"
           trap 'rm -f -- "$reference"' ERR
-          curl --fail --silent --location --proto '=https' --proto-redir '=https' \
-            --connect-timeout 30 --max-time 600 --max-redirs 5 --max-filesize 67108864 \
-            --output "$reference" --url "$FIRMWARE_URL" || {
-              echo "::error::JHZA6 reference download failed."
-              false
-            }
+
+          if [[ -n "$PRIVATE_RELEASE_TOKEN" ]]; then
+            echo "Downloading JHZA6 reference from private GitHub release."
+            GH_TOKEN="$PRIVATE_RELEASE_TOKEN" gh release download jhza6-reference \
+              --repo faizsurprise/t2s-jhza6-private \
+              --pattern '*.img' --output "$reference"
+          elif [[ -n "$FIRMWARE_URL" ]]; then
+            echo "Downloading JHZA6 reference from configured private HTTPS URL."
+            curl --fail --silent --show-error --location \
+              --proto '=https' --proto-redir '=https' \
+              --connect-timeout 30 --max-time 600 --max-redirs 5 \
+              --max-filesize 67108864 \
+              --output "$reference" --url "$FIRMWARE_URL"
+          else
+            echo "::error::Configure JHZA6_PRIVATE_READ_TOKEN for the private GitHub release, or JHZA6_RECOVERY_URL for direct HTTPS download."
+            exit 1
+          fi
+
+          # The uploaded image must be the exact verified reference; never
+          # silently substitute an arbitrary Samsung recovery image.
           printf '%s  %s\n' "$FIRMWARE_SHA256" "$reference" | sha256sum --check --strict
 
       - name: Prepare Ubuntu x86-64 and reclaim disk space
