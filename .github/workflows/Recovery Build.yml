@@ -39,7 +39,7 @@ jobs:
       - name: Download and verify private JHZA6 reference
         env:
           # Preferred: a single .img asset in the private release tagged jhza6-reference.
-          # The read-only PAT must be restricted to faizsurprise/t2s-jhza6-private.
+          # The read-only PAT must be restricted to faizsurprise/t2s-jhza6-private-.
           PRIVATE_RELEASE_TOKEN: ${{ secrets.JHZA6_PRIVATE_READ_TOKEN }}
           # Backwards-compatible alternative; must be a direct HTTPS download URL.
           FIRMWARE_URL: ${{ secrets.JHZA6_RECOVERY_URL }}
@@ -52,7 +52,7 @@ jobs:
           if [[ -n "$PRIVATE_RELEASE_TOKEN" ]]; then
             echo "Downloading JHZA6 reference from private GitHub release."
             GH_TOKEN="$PRIVATE_RELEASE_TOKEN" gh release download jhza6-reference \
-              --repo faizsurprise/t2s-jhza6-private \
+              --repo faizsurprise/t2s-jhza6-private- \
               --pattern '*.img' --output "$reference"
           elif [[ -n "$FIRMWARE_URL" ]]; then
             echo "Downloading JHZA6 reference from configured private HTTPS URL."
