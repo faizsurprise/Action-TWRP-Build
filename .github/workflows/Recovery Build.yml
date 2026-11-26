@@ -173,8 +173,8 @@ jobs:
               ("dalvik/dx/src/Android.bp", "droiddoc_host", "dx-docs"),
               ("dalvik/dx/junit-tests/Android.bp", "java_test_host", "dx-tests"),
           )
-          header = re.compile(r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \\t]*\\{")
-          name = re.compile(r'(?m)^[ \\t]*name:[ \\t]*"([^"]+)"')
+          header = re.compile(r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \t]*\{")
+          name = re.compile(r'(?m)^[ \t]*name:[ \t]*"([^"]+)"')
 
           for file_name, expected_type, expected_name in targets:
               path = Path(file_name)
