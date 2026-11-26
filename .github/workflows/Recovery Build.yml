@@ -142,6 +142,10 @@ jobs:
           test -d system/media/audio_utils
           grep -F -q 'name: "libaudioutils"' system/media/audio_utils/Android.bp
           echo "Pinned system/media libaudioutils provider verified."
+          # libaudioutils links against a real libspeexresampler provider.
+          test -f external/speex/Android.bp
+          grep -F -q 'name: "libspeexresampler"' external/speex/Android.bp
+          echo "Pinned Speex resampler provider verified."
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
