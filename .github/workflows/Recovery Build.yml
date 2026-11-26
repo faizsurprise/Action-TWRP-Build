@@ -169,7 +169,7 @@ jobs:
           trap 'rm -f -- "$reference"' EXIT
           python3 "$GITHUB_WORKSPACE/scripts/stage-firmware.py" "$reference" "$DEVICE_PATH"
 
-      - name: Exclude unused Dalvik and ART documentation and host tests
+      - name: Exclude unused development, test and documentation Soong modules
         working-directory: android-source
         run: |
           set -euo pipefail
@@ -184,6 +184,16 @@ jobs:
               ("dalvik/dx/src/Android.bp", "droiddoc_host", "dx-docs"),
               ("dalvik/dx/junit-tests/Android.bp", "java_test_host", "dx-tests"),
               ("art/tools/ahat/Android.bp", "droiddoc_host", "ahat-docs"),
+              ("packages/providers/MediaProvider/errorprone/Android.bp",
+               "java_plugin", "error_prone_mediaprovider"),
+              ("packages/providers/MediaProvider/errorprone/Android.bp",
+               "java_library_host", "error_prone_mediaprovider_lib"),
+              ("packages/modules/adb/fastdeploy/Android.bp",
+               "java_test_host", "FastDeployHostTests"),
+              ("external/icu/tools/testing/test_harness/Android.bp",
+               "java_test_host", "ICU4CTestRunner"),
+              ("external/icu/tools/srcgen/currysrc/Android.bp",
+               "java_library_host", "currysrc"),
           )
           header = re.compile(r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \t]*\{")
           name = re.compile(r'(?m)^[ \t]*name:[ \t]*"([^"]+)"')
@@ -236,6 +246,12 @@ jobs:
               if expected_name == "ahat-docs":
                   if "ahat-docs-stubs" not in remaining or "ahat" not in remaining:
                       raise SystemExit("Unrelated AHAT stub or tool module was lost")
+              if expected_name == "FastDeployHostTests":
+                  if not {"deployagent_lib", "deployagent"}.issubset(remaining):
+                      raise SystemExit("ADB FastDeploy production modules were lost")
+              if expected_name == "currysrc":
+                  if "currysrc_org.eclipse" not in remaining:
+                      raise SystemExit("The unrelated ICU Java import was lost")
               path.write_text(result, encoding="utf-8")
               print(f"Excluded only {expected_name} ({expected_type}) from {path}")
           PY
