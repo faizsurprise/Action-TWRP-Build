@@ -137,6 +137,11 @@ jobs:
           test ! -d test/vts
           test ! -d test/vts-testcase/hal
           echo "Excluded VTS host test projects verified."
+          # Genuine audio_utils is required by frameworks/av's LVM effects.
+          # A project-level source pin ensures this is not a fake stub.
+          test -d system/media/audio_utils
+          grep -F -q 'name: "libaudioutils"' system/media/audio_utils/Android.bp
+          echo "Pinned system/media libaudioutils provider verified."
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
