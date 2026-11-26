@@ -162,34 +162,67 @@ jobs:
         working-directory: android-source
         run: |
           set -euo pipefail
-          # The Android 12.1 minimal TWRP tree removes doclava and junit.
-          # The affected Dalvik modules are docs/tests, not recovery binaries.
-          # Do not disable all of Dalvik, the real dx tooling, or Soong checks.
-          # Fail safely if upstream has added other modules to these files.
+          # The trimmed manifest deliberately omits doclava and junit-host.
+          # Remove only the known documentation/test Soong modules, preserving
+          # the package and dx-doc-stubs definitions in the same Android.bp.
           python3 - <<'PY'
           from pathlib import Path
           import re
 
           targets = (
-              ("dalvik/dx/src/Android.bp", "dx-docs"),
-              ("dalvik/dx/junit-tests/Android.bp", "dx-tests"),
+              ("dalvik/dx/src/Android.bp", "droiddoc_host", "dx-docs"),
+              ("dalvik/dx/junit-tests/Android.bp", "java_test_host", "dx-tests"),
           )
-          for file_name, module in targets:
+          header = re.compile(r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \\t]*\\{")
+          name = re.compile(r'(?m)^[ \\t]*name:[ \\t]*"([^"]+)"')
+
+          for file_name, expected_type, expected_name in targets:
               path = Path(file_name)
               source = path.read_text(encoding="utf-8")
-              declarations = re.findall(
-                  r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \t]*\{", source
-              )
-              names = re.findall(
-                  r'(?m)^[ \t]*name:[ \t]*"([^"]+)"', source
-              )
-              if len(declarations) != 1 or names != [module]:
+              declarations = [
+                  match for match in header.finditer(source)
+                  if match.group(1) == expected_type
+              ]
+              if len(declarations) != 1:
                   raise SystemExit(
-                      f"Refusing unsafe exclusion of {path}: "
-                      f"top-level module declarations={declarations}, names={names}"
+                      f"Refusing unsafe edit of {path}: expected one "
+                      f"{expected_type} declaration, found {len(declarations)}"
                   )
-              path.rename(path.with_name(path.name + ".recovery-disabled"))
-              print(f"Excluded unused {module} from Soong; real dx remains intact")
+
+              match = declarations[0]
+              opening = source.index("{", match.start(), match.end())
+              depth = 0
+              closing = None
+              for index in range(opening, len(source)):
+                  if source[index] == "{":
+                      depth += 1
+                  elif source[index] == "}":
+                      depth -= 1
+                      if depth == 0:
+                          closing = index + 1
+                          break
+                      if depth < 0:
+                          raise SystemExit(f"Unbalanced braces in {path}")
+              if closing is None:
+                  raise SystemExit(f"Unbalanced module block in {path}")
+
+              block = source[match.start():closing]
+              if name.findall(block) != [expected_name]:
+                  raise SystemExit(
+                      f"Refusing unsafe edit of {path}: {expected_name} "
+                      f"is not the unique name in the target block"
+                  )
+
+              result = source[:match.start()] + source[closing:]
+              remaining = name.findall(result)
+              if expected_name in remaining:
+                  raise SystemExit(
+                      f"{expected_name} still appears as a module in {path}"
+                  )
+              if expected_name == "dx-docs" and "dx-doc-stubs" not in remaining:
+                  raise SystemExit("The unrelated dx-doc-stubs module was lost")
+              path.write_text(result, encoding="utf-8")
+              print(f"Excluded only {expected_name} ({expected_type}) from {path}")
           PY
 
       - name: Build twrp_t2s-eng recoveryimage
