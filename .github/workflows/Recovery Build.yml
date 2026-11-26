@@ -109,6 +109,13 @@ jobs:
           # shellcheck disable=SC2016
           repo forall -e "$DEVICE_PATH" bootable/recovery system/vold -c \
             'actual=$(git rev-parse HEAD) && printf "%s %s\n" "$REPO_PATH" "$actual" && test "$actual" = "$REPO_RREV"'
+          # Minimal TWRP intentionally removes these AOSP projects, but
+          # retained Soong module definitions refer to their defaults.
+          test -f test/vts-testcase/fuzz/iface_fuzzer/Android.bp
+          test -d packages/modules/NeuralNetworks
+          grep -R --include='Android.bp' -F -q 'name: "vts_proto_fuzzer_default"' test/vts-testcase/fuzz
+          grep -R --include='Android.bp' -F -q 'name: "neuralnetworks_utils_defaults"' packages/modules/NeuralNetworks
+          echo "Restored VTS fuzz and NeuralNetworks Soong defaults verified."
 
       - name: Apply port patches and stage JHZA6 components
         working-directory: android-source
