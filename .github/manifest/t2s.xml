@@ -52,4 +52,10 @@
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
+    <!-- gRPC Java belongs to the host test/tooling graph. The TWRP recovery
+         target does not consume grpc-java-context or grpc-java-netty-shaded.
+         The minimal base manifest still includes this project but removes
+         its Guava, JSR305, Error Prone, and shaded-JAR providers. Omit the
+         unneeded consumer instead of disabling dependency validation. -->
+    <remove-project name="platform/external/grpc-grpc-java" />
 </manifest>
