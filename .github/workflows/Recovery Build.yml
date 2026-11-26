@@ -232,6 +232,15 @@ jobs:
               print(f"Excluded only {expected_name} ({expected_type}) from {path}")
           PY
 
+      - name: Exclude unrelated host development and GSI tests
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # Exclude only validated development tools and GSI test blueprints.
+          # They reference jsilver, guava, and tradefed, all omitted by the
+          # minimal recovery source manifest; none is a recovery runtime module.
+          python3 "$GITHUB_WORKSPACE/scripts/t2s-prune-unused-soong.py" .
+
       - name: Build twrp_t2s-eng recoveryimage
         working-directory: android-source
         run: |
