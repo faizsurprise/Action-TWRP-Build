@@ -337,7 +337,11 @@ jobs:
       - name: Build recovery target with target-scoped dependency enforcement
         working-directory: android-source
         run: |
-          set -euo pipefail
+          # Android 12.1 build/envsetup.sh references intentionally unset
+          # variables (TOP, ZSH_VERSION, etc.). Bash nounset (-u) makes
+          # that supported initialization abort before Soong can run.
+          # Preserve exit-on-error and pipeline failure propagation.
+          set -eo pipefail
           source "$GITHUB_WORKSPACE/scripts/t2s-disk.sh"
           check_disk_space "recovery compilation"
           monitor_disk_space
