@@ -117,6 +117,26 @@ jobs:
           grep -R --include='Android.bp' -F -q 'name: "neuralnetworks_utils_defaults"' packages/modules/NeuralNetworks
           echo "Restored VTS fuzz and NeuralNetworks Soong defaults verified."
 
+      - name: Restore pinned AOSP CTS Soong defaults
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # The minimal recovery manifest excludes platform/cts. Retained
+          # framework test Android.bp files still reference the real CTS
+          # java_defaults. Fetch ONLY the original root Android.bp from the
+          # same immutable Android 12.1 tag used by the base manifest.
+          # This avoids syncing the full CTS test suite, its huge test tree,
+          # and its unrelated transitive dependencies.
+          mkdir -p cts
+          curl --fail --silent --show-error --location --retry 3 \
+            --proto '=https' --proto-redir '=https' \
+            'https://android.googlesource.com/platform/cts/+/refs/tags/android-12.1.0_r4/Android.bp?format=TEXT' \
+            | base64 --decode > cts/Android.bp
+          test -s cts/Android.bp
+          grep -F -q 'name: "cts_support_defaults"' cts/Android.bp
+          grep -F -q 'name: "cts_defaults"' cts/Android.bp
+          echo "AOSP CTS support defaults restored at Android 12.1.0 r4."
+
       - name: Apply port patches and stage JHZA6 components
         working-directory: android-source
         run: |
