@@ -178,10 +178,10 @@ jobs:
               path = Path(file_name)
               source = path.read_text(encoding="utf-8")
               declarations = re.findall(
-                  r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \\t]*\\{", source
+                  r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \t]*\{", source
               )
               names = re.findall(
-                  r'(?m)^[ \\t]*name:[ \\t]*"([^"]+)"', source
+                  r'(?m)^[ \t]*name:[ \t]*"([^"]+)"', source
               )
               if len(declarations) != 1 or names != [module]:
                   raise SystemExit(
