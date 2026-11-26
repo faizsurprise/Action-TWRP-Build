@@ -317,18 +317,41 @@ jobs:
           python3 "$GITHUB_WORKSPACE/scripts/t2s-disable-hidl-vts.py" .
           grep -F -q 'shouldGenerateVts := false' system/tools/hidl/build/hidl_interface.go
 
-      - name: Build twrp_t2s-eng recoveryimage
+      - name: Build recovery target with target-scoped dependency enforcement
         working-directory: android-source
         run: |
+          set -euo pipefail
           source "$GITHUB_WORKSPACE/scripts/t2s-disk.sh"
           check_disk_space "recovery compilation"
           monitor_disk_space
-          unset ALLOW_MISSING_DEPENDENCIES
+          # This minimal manifest intentionally omits hundreds of unrelated
+          # platform/test modules. Soong's permissive graph mode allows their
+          # undefined references; it does NOT suppress Ninja failures when
+          # a module actually used by recoveryimage has missing dependencies.
+          # Production providers are explicitly verified in the audit step.
+          export ALLOW_MISSING_DEPENDENCIES=true
           source build/envsetup.sh
-          unset ALLOW_MISSING_DEPENDENCIES
           check_product twrp_t2s
           lunch twrp_t2s-eng
-          mka recoveryimage -j2
+          echo "Building recoveryimage; missing selected dependencies must fail."
+
+          # Only the selected recovery target is compiled; don't use 'make'
+          # without a target (that would build unrelated modules/tests).
+          if mka recoveryimage -j2 2>&1 | tee "$RUNNER_TEMP/t2s-build.log"; then
+            echo "Recovery target completed. Static image validation follows."
+          else
+            echo "::error::Recovery target failed; inspecting target-relevant errors."
+            grep -E 'missing dependencies:|FAILED:|error:|fatal:|ninja: build stopped' \
+              "$RUNNER_TEMP/t2s-build.log" \
+              | tail -n 80 > "$RUNNER_TEMP/t2s-error-excerpt.txt" || true
+            {
+              echo "### Recovery build failure excerpt"
+              echo '~~~text'
+              cat "$RUNNER_TEMP/t2s-error-excerpt.txt"
+              echo '~~~'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Validate image and generate SHA-256
         working-directory: android-source
