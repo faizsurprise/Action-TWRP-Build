@@ -158,6 +158,40 @@ jobs:
           trap 'rm -f -- "$reference"' EXIT
           python3 "$GITHUB_WORKSPACE/scripts/stage-firmware.py" "$reference" "$DEVICE_PATH"
 
+      - name: Exclude unused Dalvik documentation and host tests
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # The Android 12.1 minimal TWRP tree removes doclava and junit.
+          # The affected Dalvik modules are docs/tests, not recovery binaries.
+          # Do not disable all of Dalvik, the real dx tooling, or Soong checks.
+          # Fail safely if upstream has added other modules to these files.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          targets = (
+              ("dalvik/dx/src/Android.bp", "dx-docs"),
+              ("dalvik/dx/junit-tests/Android.bp", "dx-tests"),
+          )
+          for file_name, module in targets:
+              path = Path(file_name)
+              source = path.read_text(encoding="utf-8")
+              declarations = re.findall(
+                  r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \\t]*\\{", source
+              )
+              names = re.findall(
+                  r'(?m)^[ \\t]*name:[ \\t]*"([^"]+)"', source
+              )
+              if len(declarations) != 1 or names != [module]:
+                  raise SystemExit(
+                      f"Refusing unsafe exclusion of {path}: "
+                      f"top-level module declarations={declarations}, names={names}"
+                  )
+              path.rename(path.with_name(path.name + ".recovery-disabled"))
+              print(f"Excluded unused {module} from Soong; real dx remains intact")
+          PY
+
       - name: Build twrp_t2s-eng recoveryimage
         working-directory: android-source
         run: |
