@@ -169,7 +169,7 @@ jobs:
           trap 'rm -f -- "$reference"' EXIT
           python3 "$GITHUB_WORKSPACE/scripts/stage-firmware.py" "$reference" "$DEVICE_PATH"
 
-      - name: Exclude unused Dalvik documentation and host tests
+      - name: Exclude unused Dalvik and ART documentation and host tests
         working-directory: android-source
         run: |
           set -euo pipefail
@@ -183,6 +183,7 @@ jobs:
           targets = (
               ("dalvik/dx/src/Android.bp", "droiddoc_host", "dx-docs"),
               ("dalvik/dx/junit-tests/Android.bp", "java_test_host", "dx-tests"),
+              ("art/tools/ahat/Android.bp", "droiddoc_host", "ahat-docs"),
           )
           header = re.compile(r"(?m)^([A-Za-z_][A-Za-z0-9_]*)[ \t]*\{")
           name = re.compile(r'(?m)^[ \t]*name:[ \t]*"([^"]+)"')
@@ -232,6 +233,9 @@ jobs:
                   )
               if expected_name == "dx-docs" and "dx-doc-stubs" not in remaining:
                   raise SystemExit("The unrelated dx-doc-stubs module was lost")
+              if expected_name == "ahat-docs":
+                  if "ahat-docs-stubs" not in remaining or "ahat" not in remaining:
+                      raise SystemExit("Unrelated AHAT stub or tool module was lost")
               path.write_text(result, encoding="utf-8")
               print(f"Excluded only {expected_name} ({expected_type}) from {path}")
           PY
