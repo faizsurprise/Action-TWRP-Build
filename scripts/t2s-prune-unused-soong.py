@@ -68,6 +68,12 @@ SPECS = {
         "robolectric-android-all-prebuilts",
         {"package", "license", "android_robolectric_runtimes"},
     ),
+    # Restoring system/media is necessary for libaudioutils. Exclude only
+    # the audio_utils unit-test blueprint; keep the real production provider.
+    "system/media/audio_utils/tests/Android.bp": (
+        "balance_tests",
+        {"package", "license", "cc_test", "cc_binary", "cc_binary_host"},
+    ),
 }
 
 
