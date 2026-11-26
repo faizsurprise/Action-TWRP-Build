@@ -36,6 +36,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Preflight recovery automation and overlay syntax
+        run: |
+          set -euo pipefail
+          # Catch script/manifest errors before the expensive firmware and
+          # Android source sync stages.
+          python3 -m py_compile \
+            scripts/t2s-source-audit.py \
+            scripts/t2s-prune-unused-soong.py \
+            scripts/t2s-disable-hidl-vts.py \
+            scripts/stage-firmware.py \
+            scripts/validate-t2s-recovery.py
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse(".github/manifest/t2s.xml").getroot()
+          assert root.tag == "manifest", "Invalid local repo manifest"
+          PY
+
       - name: Download and verify private JHZA6 reference
         env:
           # Preferred: a single .img asset in the private release tagged jhza6-reference.
