@@ -33,6 +33,27 @@ SPECS = {
             "java_library_host", "java_test_host",
         },
     ),
+    # APEX test fixtures and host tests are not installed in recovery.
+    "system/apex/tests/Android.bp": (
+        "apex_targetprep_tests",
+        {
+            "package", "license", "java_defaults", "java_test_host",
+            "java_library_host", "apex", "apex_key",
+            "android_app_certificate", "prebuilt_etc",
+            "android_test_helper_app",
+        },
+    ),
+    # API documentation tooling has been excluded with doclava/jsilver.
+    "build/make/tools/apicheck/Android.bp": (
+        "apicheck",
+        {"package", "license", "java_binary_host"},
+    ),
+    # The NetworkStack project is needed for its genuine Soong defaults,
+    # but its Kotlin/Tradefed host-test helper is not a recovery dependency.
+    "packages/modules/NetworkStack/tests/hostlib/Android.bp": (
+        "net-host-tests-utils",
+        {"package", "license", "java_library_host"},
+    ),
 }
 
 
