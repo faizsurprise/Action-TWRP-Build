@@ -96,6 +96,14 @@ jobs:
             --groups=default,-darwin \
             -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           install -D "$GITHUB_WORKSPACE/.github/manifest/t2s.xml" .repo/local_manifests/t2s.xml
+          # Freeze the base manifest at the SHA used by the previous runs.
+          # Refuse silent upstream project-selection changes.
+          expected_manifest=6dc117d9cbd08430daa16db2013560e1c4017fa8
+          actual_manifest="$(git -C .repo/manifests rev-parse HEAD)"
+          if [[ "$actual_manifest" != "$expected_manifest" ]]; then
+            echo "::error::Upstream TWRP manifest moved to $actual_manifest; expected $expected_manifest. Review/pin the new manifest before retrying."
+            exit 1
+          fi
 
       - name: Sync and verify pinned sources
         working-directory: android-source
@@ -146,6 +154,25 @@ jobs:
           test -f external/speex/Android.bp
           grep -F -q 'name: "libspeexresampler"' external/speex/Android.bp
           echo "Pinned Speex resampler provider verified."
+
+      - name: Audit effective recovery manifest and runtime providers
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # Inspect the actual merged repo checkout, not a guessed dependency
+          # list. Keep genuine runtime libraries and verified Samsung pins.
+          repo manifest -o "$RUNNER_TEMP/t2s-effective-manifest.xml"
+          python3 "$GITHUB_WORKSPACE/scripts/t2s-source-audit.py" \
+            --source-root . \
+            --manifest "$RUNNER_TEMP/t2s-effective-manifest.xml" \
+            --manifest-sha "$(git -C .repo/manifests rev-parse HEAD)" \
+            --report "$RUNNER_TEMP/t2s-source-audit.json"
+          {
+            echo "### Recovery-only manifest audit"
+            echo '~~~json'
+            cat "$RUNNER_TEMP/t2s-source-audit.json"
+            echo '~~~'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
