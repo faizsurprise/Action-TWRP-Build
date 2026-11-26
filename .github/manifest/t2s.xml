@@ -58,4 +58,9 @@
          its Guava, JSR305, Error Prone, and shaded-JAR providers. Omit the
          unneeded consumer instead of disabling dependency validation. -->
     <remove-project name="platform/external/grpc-grpc-java" />
+    <!-- VTS runtime/test harnesses are not needed for a recovery image.
+         Keep the separately pinned test/vts-testcase/fuzz provider because
+         platform Android.bp modules still use its Soong defaults. -->
+    <remove-project name="platform/test/vts" />
+    <remove-project name="platform/test/vts-testcase/hal" />
 </manifest>
