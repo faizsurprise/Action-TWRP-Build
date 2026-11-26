@@ -132,6 +132,11 @@ jobs:
           # stripped by the minimal manifest. Ensure local project removal won.
           test ! -d external/grpc-grpc-java
           echo "Excluded gRPC Java source verified."
+          # VTS host test projects are intentionally excluded; the fuzzing
+          # definitions needed by retained blueprints stay checked separately.
+          test ! -d test/vts
+          test ! -d test/vts-testcase/hal
+          echo "Excluded VTS host test projects verified."
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
