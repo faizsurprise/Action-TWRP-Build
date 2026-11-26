@@ -54,6 +54,13 @@ SPECS = {
         "net-host-tests-utils",
         {"package", "license", "java_library_host"},
     ),
+    # Host-only timezone inspection utilities require Guava, which is not
+    # provided in the minimal TWRP source tree. Timezone runtime data lives
+    # elsewhere, so omit this debug-tools blueprint as a complete unit.
+    "system/timezone/debug_tools/host/Android.bp": (
+        "timezone_host_debug_tools",
+        {"package", "license", "java_library_host", "java_binary_host"},
+    ),
 }
 
 
