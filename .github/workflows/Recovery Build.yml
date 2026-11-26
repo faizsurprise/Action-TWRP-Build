@@ -121,6 +121,13 @@ jobs:
           test -d packages/modules/NetworkStack
           grep -R --include='Android.bp' -F -q 'name: "libnetworkstackutilsjni_deps"' packages/modules/NetworkStack
           echo "NetworkStack libnetworkstackutilsjni_deps verified."
+          # Full AOSP junit and hamcrest are excluded from the minimal base
+          # manifest but required by apache-harmony's JDWP host tests.
+          test -f external/junit/Android.bp
+          grep -R --include='Android.bp' -F -q 'name: "junit"' external/junit
+          grep -R --include='Android.bp' -F -q 'name: "junit-host"' external/junit
+          grep -R --include='Android.bp' -F -q 'name: "hamcrest"' external/hamcrest
+          echo "JUnit/hamcrest Soong definitions verified."
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
