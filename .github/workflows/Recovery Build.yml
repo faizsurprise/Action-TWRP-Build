@@ -116,6 +116,11 @@ jobs:
           grep -R --include='Android.bp' -F -q 'name: "vts_proto_fuzzer_default"' test/vts-testcase/fuzz
           grep -R --include='Android.bp' -F -q 'name: "neuralnetworks_utils_defaults"' packages/modules/NeuralNetworks
           echo "Restored VTS fuzz and NeuralNetworks Soong defaults verified."
+          # NetworkStack was also excluded by the minimal manifest, while
+          # Connectivity coverage blueprints require its real java_defaults.
+          test -d packages/modules/NetworkStack
+          grep -R --include='Android.bp' -F -q 'name: "libnetworkstackutilsjni_deps"' packages/modules/NetworkStack
+          echo "NetworkStack libnetworkstackutilsjni_deps verified."
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
