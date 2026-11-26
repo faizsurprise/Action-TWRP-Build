@@ -37,4 +37,19 @@
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
+    <!-- Full original Soong providers for apache-harmony's host tests.
+         TWRP minimal removes both; junit depends on hamcrest. Keep the
+         same Android 12.1.0_r4 base revision rather than stubbing modules. -->
+    <project name="platform/external/hamcrest"
+             path="external/hamcrest"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
+    <project name="platform/external/junit"
+             path="external/junit"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
 </manifest>
