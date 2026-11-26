@@ -270,6 +270,17 @@ jobs:
           # minimal recovery source manifest; none is a recovery runtime module.
           python3 "$GITHUB_WORKSPACE/scripts/t2s-prune-unused-soong.py" .
 
+      - name: Disable generated HIDL VTS tests for recovery
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # The source tree excludes test/vts-testcase/hal, while the stock
+          # HIDL generator otherwise emits ~24 VTS driver/profiler modules
+          # that require its VtsHalDriverDefaults/VtsHalProfilerDefaults.
+          # Disable only VTS module generation, not production HALs.
+          python3 "$GITHUB_WORKSPACE/scripts/t2s-disable-hidl-vts.py" .
+          grep -F -q 'shouldGenerateVts := false' system/tools/hidl/build/hidl_interface.go
+
       - name: Build twrp_t2s-eng recoveryimage
         working-directory: android-source
         run: |
