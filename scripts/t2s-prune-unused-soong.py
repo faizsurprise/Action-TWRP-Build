@@ -61,6 +61,13 @@ SPECS = {
         "timezone_host_debug_tools",
         {"package", "license", "java_library_host", "java_binary_host"},
     ),
+    # Robolectric is a Java unit-test runtime, not part of the recovery
+    # image. Its matching host runtime library is removed by the minimal
+    # manifest; exclude the test-only Android.bp rather than creating stubs.
+    "prebuilts/misc/common/robolectric/Android.bp": (
+        "robolectric-android-all-prebuilts",
+        {"package", "license", "android_robolectric_runtimes"},
+    ),
 }
 
 
