@@ -72,4 +72,13 @@
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
+    <!-- libaudioutils depends on the original libspeexresampler module.
+         The minimal recovery manifest also excludes this provider; restore
+         it at the same pinned Android 12.1 tag as system/media. -->
+    <project name="platform/external/speex"
+             path="external/speex"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
 </manifest>
