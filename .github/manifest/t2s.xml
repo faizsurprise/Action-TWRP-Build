@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
+    <!-- Recovery-only overlay for upstream twrp-12.1 manifest commit
+         6dc117d9cbd08430daa16db2013560e1c4017fa8.
+         The workflow verifies that base revision and the effective checkout.
+         Undefined modules outside the recoveryimage graph are tolerated
+         during Soong parsing; selected recovery dependencies must still build. -->
+
+    <!-- 1. Exact device, TWRP and Vold source pins. -->
     <remote name="xfwdrev" fetch="https://github.com/xfwdrev" />
     <project name="android_device_samsung_exynos2100"
              path="device/samsung/exynos2100"
@@ -12,9 +19,27 @@
     <extend-project name="android_system_vold"
                     path="system/vold"
                     revision="a164ba05c5fef288059774a776b2e6e1119957cf" />
-    <!-- Restore real AOSP Soong defaults removed by the minimal TWRP manifest.
-         The 2026-11-26 first hosted build failed on these missing definitions.
-         Keep them at the same Android 12.1 tag as the base manifest. -->
+
+    <!-- 2. Genuine production providers needed by retained frameworks.
+         The upstream minimal removals omit system/media and external/speex,
+         even though frameworks/av depends on libaudioutils, which in turn
+         depends on libspeexresampler. Do not use stub modules here. -->
+    <project name="platform/system/media"
+             path="system/media"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
+    <project name="platform/external/speex"
+             path="external/speex"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
+
+    <!-- 3. Original Android 12.1 Soong defaults/providers for the retained
+         source tree. These preserve known definitions without fabricating
+         dependencies; isolated host-only tests are excluded at build prep. -->
     <project name="platform/test/vts-testcase/fuzz"
              path="test/vts-testcase/fuzz"
              remote="aosp"
@@ -27,19 +52,12 @@
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
-    <!-- Restore the genuine Android 12.1 NetworkStack Soong providers.
-         The minimal recovery manifest removes this project while
-         Connectivity's coverage-test blueprints still reference
-         libnetworkstackutilsjni_deps. Avoid fabricated defaults. -->
     <project name="platform/packages/modules/NetworkStack"
              path="packages/modules/NetworkStack"
              remote="aosp"
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
-    <!-- Full original Soong providers for apache-harmony's host tests.
-         TWRP minimal removes both; junit depends on hamcrest. Keep the
-         same Android 12.1.0_r4 base revision rather than stubbing modules. -->
     <project name="platform/external/hamcrest"
              path="external/hamcrest"
              remote="aosp"
@@ -52,33 +70,11 @@
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
-    <!-- gRPC Java belongs to the host test/tooling graph. The TWRP recovery
-         target does not consume grpc-java-context or grpc-java-netty-shaded.
-         The minimal base manifest still includes this project but removes
-         its Guava, JSR305, Error Prone, and shaded-JAR providers. Omit the
-         unneeded consumer instead of disabling dependency validation. -->
+
+    <!-- 4. Remove entire test-only projects. The retained
+         test/vts-testcase/fuzz project above supplies Soong defaults;
+         the VTS host harnesses and Java gRPC test tooling are unnecessary. -->
     <remove-project name="platform/external/grpc-grpc-java" />
-    <!-- VTS runtime/test harnesses are not needed for a recovery image.
-         Keep the separately pinned test/vts-testcase/fuzz provider because
-         platform Android.bp modules still use its Soong defaults. -->
     <remove-project name="platform/test/vts" />
     <remove-project name="platform/test/vts-testcase/hal" />
-    <!-- The minimal manifest removes system/media, but frameworks/av
-         requires its actual audio_utils provider (libaudioutils). Restore
-         the pinned AOSP sources, not a dummy module or disabled dependency. -->
-    <project name="platform/system/media"
-             path="system/media"
-             remote="aosp"
-             revision="refs/tags/android-12.1.0_r4"
-             groups="default"
-             clone-depth="1" />
-    <!-- libaudioutils depends on the original libspeexresampler module.
-         The minimal recovery manifest also excludes this provider; restore
-         it at the same pinned Android 12.1 tag as system/media. -->
-    <project name="platform/external/speex"
-             path="external/speex"
-             remote="aosp"
-             revision="refs/tags/android-12.1.0_r4"
-             groups="default"
-             clone-depth="1" />
 </manifest>
