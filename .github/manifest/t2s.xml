@@ -63,4 +63,13 @@
          platform Android.bp modules still use its Soong defaults. -->
     <remove-project name="platform/test/vts" />
     <remove-project name="platform/test/vts-testcase/hal" />
+    <!-- The minimal manifest removes system/media, but frameworks/av
+         requires its actual audio_utils provider (libaudioutils). Restore
+         the pinned AOSP sources, not a dummy module or disabled dependency. -->
+    <project name="platform/system/media"
+             path="system/media"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
 </manifest>
