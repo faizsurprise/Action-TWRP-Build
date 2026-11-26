@@ -12,4 +12,19 @@
     <extend-project name="android_system_vold"
                     path="system/vold"
                     revision="a164ba05c5fef288059774a776b2e6e1119957cf" />
+    <!-- Restore real AOSP Soong defaults removed by the minimal TWRP manifest.
+         The 2026-11-26 first hosted build failed on these missing definitions.
+         Keep them at the same Android 12.1 tag as the base manifest. -->
+    <project name="platform/test/vts-testcase/fuzz"
+             path="test/vts-testcase/fuzz"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
+    <project name="platform/packages/modules/NeuralNetworks"
+             path="packages/modules/NeuralNetworks"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
 </manifest>
