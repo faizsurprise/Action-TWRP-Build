@@ -27,4 +27,14 @@
              revision="refs/tags/android-12.1.0_r4"
              groups="default"
              clone-depth="1" />
+    <!-- Restore the genuine Android 12.1 NetworkStack Soong providers.
+         The minimal recovery manifest removes this project while
+         Connectivity's coverage-test blueprints still reference
+         libnetworkstackutilsjni_deps. Avoid fabricated defaults. -->
+    <project name="platform/packages/modules/NetworkStack"
+             path="packages/modules/NetworkStack"
+             remote="aosp"
+             revision="refs/tags/android-12.1.0_r4"
+             groups="default"
+             clone-depth="1" />
 </manifest>
