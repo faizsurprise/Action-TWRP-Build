@@ -8,6 +8,51 @@
 
 Successful publication adds `recovery.img` and `recovery.img.sha256` to GitHub Releases. The workflow checks the partition size, v2 boot layout, staged JHZA6 sections, recovery ramdisk, and any embedded AVB footer. The current device build disables AVB and appends the Samsung `SEANDROIDENFORCE` marker. Device boot, verified-boot acceptance, and decryption are untested.
 
+
+## Recovery-only source graph policy
+
+The TWRP 12.1 upstream default manifest lists approximately 1,061 projects
+and its minimal removal manifest excludes approximately 828. The resulting
+checkout is intentionally **not a complete Android platform tree**. Soong
+therefore encounters dependencies belonging to tools, tests and platform
+components unrelated to the requested recovery image.
+
+The **Recovery Build** workflow now uses this explicit two-stage policy:
+
+1. **Fail-closed source audit.** The upstream `twrp-12.1` manifest revision
+   is pinned to `6dc117d9cbd08430daa16db2013560e1c4017fa8`. After sync,
+   `scripts/t2s-source-audit.py` checks the merged `repo manifest`, the
+   three exact Samsung/TWRP/vold Git revisions, required original source
+   projects, and the actual `libaudioutils` and `libspeexresampler`
+   Soong declarations. Unexpected project changes stop the build.
+2. **Recovery-target dependency validation.** The workflow sets
+   `ALLOW_MISSING_DEPENDENCIES=true` **only inside the build step** to let
+   Soong generate a graph despite undefined modules in unrelated Android
+   projects. It then invokes `mka recoveryimage -j2`, **not** an all-platform
+   build. Android 12.1 Soong emits failing Ninja actions for missing
+   dependencies required by compiled modules; a missing dependency actually
+   needed by recovery therefore fails the selected build and blocks output
+   publication. Failures include an excerpt in the Actions job summary.
+
+This is not a license to stub missing recovery libraries, disable image checks,
+or assume the resulting image boots. Once produced, the recovery image must
+still pass static partition/header checks and must be tested for boot,
+decryption and One UI 7 / Android 15 compatibility **before flashing**.
+Publishing is disabled by default (`publish=false`).
+
+The legacy explicit exclusions for known host documentation/tests remain to
+reduce unnecessary graph work. They are intentionally guarded against upstream
+source changes; they should not need to expand every time a new unrelated
+platform test dependency is discovered.
+
+### Commands from Termux
+
+```sh
+gh workflow run "Recovery Build.yml" \
+  -R faizsurprise/Action-TWRP-Build --ref main -f publish=false
+gh run watch -R faizsurprise/Action-TWRP-Build
+```
+
 ---
 
 ## Upstream builder documentation
