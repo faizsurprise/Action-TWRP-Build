@@ -128,6 +128,10 @@ jobs:
           grep -R --include='Android.bp' -F -q 'name: "junit-host"' external/junit
           grep -R --include='Android.bp' -F -q 'name: "hamcrest"' external/hamcrest
           echo "JUnit/hamcrest Soong definitions verified."
+          # gRPC Java has no recovery target and requires host-only libraries
+          # stripped by the minimal manifest. Ensure local project removal won.
+          test ! -d external/grpc-grpc-java
+          echo "Excluded gRPC Java source verified."
 
       - name: Restore pinned AOSP CTS Soong defaults
         working-directory: android-source
