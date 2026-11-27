@@ -243,7 +243,7 @@ jobs:
           if not kernel_modules:
               raise SystemExit("No verified JHZA6 kernel modules were staged")
           for module in kernel_modules:
-              if module.read_bytes()[:4] != b"\\x7fELF":
+              if module.read_bytes()[:4] != b"\x7fELF":
                   raise SystemExit(f"Expected an ELF kernel module: {module}")
           print(f"Verified {len(kernel_modules)} staged JHZA6 ELF kernel modules.")
           PY
