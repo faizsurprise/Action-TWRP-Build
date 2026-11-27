@@ -50,6 +50,7 @@ jobs:
             scripts/validate-t2s-recovery.py
           # Exercise the Robolectric parser against test-only and mixed
           # production/test Blueprints before the expensive repo sync.
+          bash -n scripts/t2s-restore-vintf-host.sh
           python3 -m unittest discover -s tests -p 'test_t2s_prune_robolectric.py' -v
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
@@ -373,6 +374,16 @@ jobs:
             exit 1
           fi
           grep -F -q 'name: "SettingsLibShell"' "$file"
+
+      - name: Restore pinned VINTF host assembly provider
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # assemble_vintf really links libvts_vintf_test_common even though
+          # its provider resides in a VTS project excluded by the manifest.
+          # Restore only its 3 original AOSP files at the same Android tag;
+          # verify their Git blob hashes, not a dummy library or full test tree.
+          bash "$GITHUB_WORKSPACE/scripts/t2s-restore-vintf-host.sh" "$PWD"
 
       - name: Build recovery target with target-scoped dependency enforcement
         working-directory: android-source
