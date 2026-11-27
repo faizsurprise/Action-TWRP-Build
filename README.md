@@ -40,6 +40,15 @@ still pass static partition/header checks and must be tested for boot,
 decryption and One UI 7 / Android 15 compatibility **before flashing**.
 Publishing is disabled by default (`publish=false`).
 
+The recovery source preparation also removes only `android_robolectric_test`
+module declarations using `scripts/t2s-prune-robolectric.py`. This is needed
+because the Android 12.1 Robolectric test builder can panic when
+`ALLOW_MISSING_DEPENDENCIES` permits its missing host runtime:
+`robolectric-android-all-prebuilts`. It preserves other modules in the
+same `Android.bp` files, verifies the previously failing
+`SettingsLibRoboTests` was removed, and runs synthetic regression tests
+before source checkout.
+
 The legacy explicit exclusions for known host documentation/tests remain to
 reduce unnecessary graph work. They are intentionally guarded against upstream
 source changes; they should not need to expand every time a new unrelated
