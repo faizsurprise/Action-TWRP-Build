@@ -44,6 +44,7 @@ jobs:
           python3 -m py_compile \
             scripts/t2s-source-audit.py \
             scripts/t2s-prune-unused-soong.py \
+            scripts/t2s-prune-robolectric.py \
             scripts/t2s-disable-hidl-vts.py \
             scripts/stage-firmware.py \
             scripts/validate-t2s-recovery.py
@@ -333,6 +334,25 @@ jobs:
           # Disable only VTS module generation, not production HALs.
           python3 "$GITHUB_WORKSPACE/scripts/t2s-disable-hidl-vts.py" .
           grep -F -q 'shouldGenerateVts := false' system/tools/hidl/build/hidl_interface.go
+
+      - name: Exclude unused Robolectric tests from Soong
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # ALLOW_MISSING_DEPENDENCIES permits missing unrelated modules,
+          # but Android 12.1's Robolectric test builder unconditionally casts
+          # a missing robolectric-android-all-prebuilts runtime and panics.
+          # Exclude only android_robolectric_test modules across the tree.
+          python3 "$GITHUB_WORKSPACE/scripts/t2s-prune-robolectric.py" .
+          # Assert the exact failing SettingsLibRoboTests test was removed,
+          # while the production Android.bp in the same directory remains.
+          file=frameworks/base/packages/SettingsLib/tests/robotests/Android.bp
+          test -f "$file"
+          if grep -F -q 'name: "SettingsLibRoboTests"' "$file"; then
+            echo "::error::SettingsLibRoboTests still present"
+            exit 1
+          fi
+          grep -F -q 'name: "SettingsLibShell"' "$file"
 
       - name: Build recovery target with target-scoped dependency enforcement
         working-directory: android-source
