@@ -14,7 +14,7 @@ import argparse
 from pathlib import Path
 import re
 
-HEADER = re.compile(r"(?m)^[ \t]*android_robolectric_test[ \t]*\\{")
+HEADER = re.compile(r"(?m)^[ \t]*android_robolectric_test[ \t]*\{")
 MODULE_NAME = re.compile(r'(?m)^[ \t]*name:[ \t]*"([^"]+)"')
 SETTINGS_BP = Path("frameworks/base/packages/SettingsLib/tests/robotests/Android.bp")
 
@@ -31,7 +31,7 @@ def module_end(source: str, opening: int) -> int:
         char = source[i]
         next_char = source[i + 1] if i + 1 < len(source) else ""
         if line_comment:
-            if char == "\\n":
+            if char == "\n":
                 line_comment = False
         elif block_comment:
             if char == "*" and next_char == "/":
@@ -40,7 +40,7 @@ def module_end(source: str, opening: int) -> int:
         elif quoted:
             if escaped:
                 escaped = False
-            elif char == "\\\\":
+            elif char == "\\":
                 escaped = True
             elif char == '"':
                 quoted = False
