@@ -230,6 +230,23 @@ jobs:
           reference="$RUNNER_TEMP/jhza6-reference.img"
           trap 'rm -f -- "$reference"' EXIT
           python3 "$GITHUB_WORKSPACE/scripts/stage-firmware.py" "$reference" "$DEVICE_PATH"
+          # The pinned Samsung .ko files are ELF kernel modules placed in the
+          # recovery ramdisk. The t2s BoardConfig explicitly enables AOSP's
+          # compatibility exception for PRODUCT_COPY_FILES ELF checks.
+          grep -Fxq 'BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true' \
+            "$DEVICE_PATH/t2s/BoardConfig.mk"
+          python3 - "$DEVICE_PATH/t2s/jhza6-root/lib/modules" <<'PY'
+          from pathlib import Path
+          import sys
+          module_root = Path(sys.argv[1])
+          kernel_modules = sorted(module_root.glob("*.ko"))
+          if not kernel_modules:
+              raise SystemExit("No verified JHZA6 kernel modules were staged")
+          for module in kernel_modules:
+              if module.read_bytes()[:4] != b"\\x7fELF":
+                  raise SystemExit(f"Expected an ELF kernel module: {module}")
+          print(f"Verified {len(kernel_modules)} staged JHZA6 ELF kernel modules.")
+          PY
 
       - name: Exclude unused development, test and documentation Soong modules
         working-directory: android-source
