@@ -48,6 +48,9 @@ jobs:
             scripts/t2s-disable-hidl-vts.py \
             scripts/stage-firmware.py \
             scripts/validate-t2s-recovery.py
+          # Exercise the Robolectric parser against test-only and mixed
+          # production/test Blueprints before the expensive repo sync.
+          python3 -m unittest discover -s tests -p 'test_t2s_prune_robolectric.py' -v
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
           root = ET.parse(".github/manifest/t2s.xml").getroot()
