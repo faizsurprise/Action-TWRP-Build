@@ -50,6 +50,16 @@ still pass static partition/header checks and must be tested for boot,
 decryption and One UI 7 / Android 15 compatibility **before flashing**.
 Publishing is disabled by default (`publish=false`).
 
+The VINTF host assembler is a special exception to the otherwise excluded
+VTS project: Android 12.1's `system/libvintf` directly links
+`libvts_vintf_test_common` when building `assemble_vintf`. After the
+source audit and test cleanup, `scripts/t2s-restore-vintf-host.sh`
+restores only the library's original `Android.bp`, `common.cpp`, and
+`include/libvts_vintf_test_common/common.h` from
+`platform/test/vts-testcase/hal` at `android-12.1.0_r4`. All three
+are checked against their known Git blob hashes. This preserves the real
+host-tool dependency without syncing the VTS test tree.
+
 The recovery source preparation also removes only `android_robolectric_test`
 module declarations using `scripts/t2s-prune-robolectric.py`. This is needed
 because the Android 12.1 Robolectric test builder can panic when
