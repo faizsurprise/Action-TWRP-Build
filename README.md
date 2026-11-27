@@ -34,6 +34,16 @@ The **Recovery Build** workflow now uses this explicit two-stage policy:
    needed by recovery therefore fails the selected build and blocks output
    publication. Failures include an excerpt in the Actions job summary.
 
+The t2s device patch explicitly sets
+`BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true` in its
+`t2s/BoardConfig.mk`, because the hash-verified JHZA6 recovery image supplies
+ARM64 kernel `.ko` ELF modules that are copied into
+`recovery/root/lib/modules`. Android 12.1 normally prohibits ELF inputs
+under `PRODUCT_COPY_FILES`; this supported BoardConfig exception bypasses
+that general ELF-copy rule for this device build. It does **not** skip the
+existing reference-image SHA-256 or final image/ramdisk content validation.
+The workflow also preflights the flag and the staged ELF kernel-module magic.
+
 This is not a license to stub missing recovery libraries, disable image checks,
 or assume the resulting image boots. Once produced, the recovery image must
 still pass static partition/header checks and must be tested for boot,
