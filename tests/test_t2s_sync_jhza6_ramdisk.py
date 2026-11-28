@@ -33,6 +33,16 @@ def fixture(device: Path) -> tuple[Path, Path]:
             create(root, filename, content)
     create(device, "t2s/recovery/root/vendor/firmware/y792_t2.bin", b"old-fw")
     create(device, "t2s/jhza6-root/vendor/firmware/y792_t2.bin", b"new-fw")
+    create(device, "t2s/recovery/twrp.flags",
+           b"# mount point\n/system_image /dev/block/mapper/system\n")
+    create(device, "recovery/root/system/etc/twrp.flags",
+           b"# legacy unsupported mount points\n")
+    create(device, "t2s/recovery/manifest.xml",
+           b"<manifest>android.hardware.keymaster android.hardware.gatekeeper</manifest>\n")
+    create(device, "recovery/root/vendor/etc/vintf/manifest.xml",
+           b"<manifest>old legacy HALs</manifest>\n")
+    create(device, "recovery/root/system/bin/postrecoveryboot.sh",
+           b"#!/bin/sh\necho autoexec\n")
     return old, new
 
 
@@ -45,7 +55,21 @@ class T2sRamdiskMirrorTests(unittest.TestCase):
             result = MODULE.sync(device, min_modules=2)
             self.assertEqual(result["staged_modules"], 2)
             self.assertTrue(result["cdc_ncm_replaced"])
+            self.assertTrue(result["twrp_flags_override"])
+            self.assertTrue(result["vintf_manifest_override"])
+            self.assertTrue(result["removed_legacy_postrecoveryboot"])
             self.assertEqual(result["removed_stale_legacy_files"], 1)
+            self.assertEqual(
+                (device / "recovery/root/system/etc/twrp.flags").read_bytes(),
+                (device / "t2s/recovery/twrp.flags").read_bytes(),
+            )
+            self.assertEqual(
+                (device / "recovery/root/vendor/etc/vintf/manifest.xml").read_bytes(),
+                (device / "t2s/recovery/manifest.xml").read_bytes(),
+            )
+            self.assertFalse(
+                (device / "recovery/root/system/bin/postrecoveryboot.sh").exists()
+            )
             self.assertEqual(
                 {p.name: p.read_bytes() for p in old.iterdir()},
                 {p.name: p.read_bytes() for p in new.iterdir()},
@@ -65,6 +89,24 @@ class T2sRamdiskMirrorTests(unittest.TestCase):
                 MODULE.sync(device, min_modules=2)
             self.assertEqual((old / "cdc_ncm.ko").read_bytes(), original)
             self.assertEqual(unusual.read_bytes(), b"preserve")
+
+    def test_missing_port_flags_fails_before_mutating_legacy_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            device = Path(tmp) / "device/samsung/exynos2100"
+            old, _ = fixture(device)
+            (device / "t2s/recovery/twrp.flags").unlink()
+            original = (old / "cdc_ncm.ko").read_bytes()
+            old_flags = (device / "recovery/root/system/etc/twrp.flags").read_bytes()
+            with self.assertRaisesRegex(ValueError, "Missing or invalid"):
+                MODULE.sync(device, min_modules=2)
+            self.assertEqual((old / "cdc_ncm.ko").read_bytes(), original)
+            self.assertEqual(
+                (device / "recovery/root/system/etc/twrp.flags").read_bytes(),
+                old_flags,
+            )
+            self.assertTrue(
+                (device / "recovery/root/system/bin/postrecoveryboot.sh").exists()
+            )
 
     def test_missing_staged_load_module_fails_without_mutation(self):
         with tempfile.TemporaryDirectory() as tmp:
