@@ -497,6 +497,19 @@ jobs:
           sha256sum recovery.img > recovery.img.sha256
           sha256sum --check --strict recovery.img.sha256
 
+      - name: Upload validated recovery as private workflow artifact
+        # This downloads through the Actions run, even with publish=false.
+        # It does not create a GitHub release or imply device bootability.
+        uses: actions/upload-artifact@v4
+        with:
+          name: t2s-jhza6-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            android-source/out/target/product/t2s/recovery.img
+            android-source/out/target/product/t2s/recovery.img.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
       - name: Publish experimental prerelease
         if: inputs.publish
         working-directory: android-source/out/target/product/t2s
