@@ -47,11 +47,13 @@ jobs:
             scripts/t2s-prune-robolectric.py \
             scripts/t2s-disable-hidl-vts.py \
             scripts/stage-firmware.py \
+            scripts/t2s-sync-jhza6-ramdisk.py \
             scripts/validate-t2s-recovery.py
           # Exercise the Robolectric parser against test-only and mixed
           # production/test Blueprints before the expensive repo sync.
           bash -n scripts/t2s-restore-vintf-host.sh
           python3 -m unittest discover -s tests -p 'test_t2s_prune_robolectric.py' -v
+          python3 -m unittest discover -s tests -p 'test_t2s_sync_jhza6_ramdisk.py' -v
           python3 - <<'PY'
           import xml.etree.ElementTree as ET
           root = ET.parse(".github/manifest/t2s.xml").getroot()
@@ -231,6 +233,11 @@ jobs:
           reference="$RUNNER_TEMP/jhza6-reference.img"
           trap 'rm -f -- "$reference"' EXIT
           python3 "$GITHUB_WORKSPACE/scripts/stage-firmware.py" "$reference" "$DEVICE_PATH"
+          # The pinned tree also carries older t2s/recovery/root/lib/modules
+          # and y792_t2.bin files. They collide with the JHZA6 copy rules.
+          # Mirror the SHA-256 verified reference inputs into BOTH paths so
+          # no legacy .ko or touchscreen firmware wins on copy-order.
+          python3 "$GITHUB_WORKSPACE/scripts/t2s-sync-jhza6-ramdisk.py" "$DEVICE_PATH"
           # The pinned Samsung .ko files are ELF kernel modules placed in the
           # recovery ramdisk. The t2s BoardConfig explicitly enables AOSP's
           # compatibility exception for PRODUCT_COPY_FILES ELF checks.
