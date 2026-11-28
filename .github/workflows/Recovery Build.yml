@@ -385,6 +385,43 @@ jobs:
           # verify their Git blob hashes, not a dummy library or full test tree.
           bash "$GITHUB_WORKSPACE/scripts/t2s-restore-vintf-host.sh" "$PWD"
 
+      - name: Maximize safe recovery ramdisk gzip compression
+        working-directory: android-source
+        run: |
+          set -euo pipefail
+          # Preserve the gzip ramdisk format used by the stock JHZA6 kernel,
+          # while raising the lossless compression level from the default to 9.
+          # TeamWin's same Makefile already invokes $(MINIGZIP) -9 for notices.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("build/make/core/Makefile")
+          source = path.read_text(encoding="utf-8")
+          baseline = "COMPRESSION_COMMAND := $(MINIGZIP)\n"
+          if source.count(baseline) != 1 or "$(MINIGZIP) -9" not in source:
+              raise SystemExit("Unexpected TeamWin gzip rule; refuse optimizer")
+          path.write_text(
+              source.replace(baseline, "COMPRESSION_COMMAND := $(MINIGZIP) -9\n", 1),
+              encoding="utf-8",
+          )
+          print("Recovery CPIO remains gzip; maximum lossless gzip level 9.")
+          PY
+          config=device/samsung/exynos2100/t2s/BoardConfig.mk
+          for setting in \
+            'TW_EXCLUDE_NANO := true' \
+            'TW_EXCLUDE_BASH := true' \
+            'TW_EXTRA_LANGUAGES := false' \
+            'TW_INCLUDE_NTFS_3G := false' \
+            'TW_INCLUDE_REPACKTOOLS := false'; do
+            grep -Fxq "$setting" "$config" || {
+              echo "::error::Missing recovery-only size optimization: $setting"
+              exit 1
+            }
+          done
+          grep -Fxq 'TW_INCLUDE_CRYPTO := true' "$config"
+          grep -Fxq 'TW_USES_VENDOR_LIBS := true' "$config"
+          grep -Fxq 'BOARD_RECOVERYIMAGE_PARTITION_SIZE := 67108864' "$config"
+          echo "Confirmed 64 MiB limit and essential crypto settings."
+
       - name: Build recovery target with target-scoped dependency enforcement
         working-directory: android-source
         run: |
