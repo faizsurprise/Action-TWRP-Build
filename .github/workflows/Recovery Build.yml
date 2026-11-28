@@ -459,6 +459,23 @@ jobs:
               cat "$RUNNER_TEMP/t2s-error-excerpt.txt"
               echo '~~~'
             } >> "$GITHUB_STEP_SUMMARY"
+            # A recovery.img may have been assembled successfully but rejected
+            # solely because it exceeds the physical 64 MiB partition. Report
+            # the actual section sizes without relaxing the hard size limit.
+            {
+              echo "### Compiled-image section sizes after failure"
+              for item in \
+                out/target/product/t2s/recovery.img \
+                out/target/product/t2s/ramdisk-recovery.img \
+                out/target/product/t2s/kernel \
+                device/samsung/exynos2100/t2s/prebuilt/dtb \
+                device/samsung/exynos2100/t2s/prebuilt/dtbo.img; do
+                if [[ -f "$item" ]]; then
+                  printf '%s: %s bytes\n' "$item" "$(stat -c '%s' "$item")"
+                fi
+              done
+              echo "Hard recovery partition ceiling: 67108864 bytes"
+            } | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
