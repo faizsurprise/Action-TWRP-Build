@@ -7,6 +7,10 @@ on:
         description: Publish the validated image as an experimental prerelease
         type: boolean
         default: false
+      save_artifact:
+        description: Save the validated IMG and checksum to this Actions run (may be visible to repository users)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -497,9 +501,12 @@ jobs:
           sha256sum recovery.img > recovery.img.sha256
           sha256sum --check --strict recovery.img.sha256
 
-      - name: Upload validated recovery as private workflow artifact
-        # This downloads through the Actions run, even with publish=false.
-        # It does not create a GitHub release or imply device bootability.
+      - name: Upload validated recovery as workflow artifact
+        # Opt-in: this repository is public, so the artifact may be
+        # downloadable by others. The build uses proprietary JHZA6 components.
+        # Uploading is separate from release publication and static validation
+        # cannot establish bootability or FBEv2 compatibility.
+        if: inputs.save_artifact
         uses: actions/upload-artifact@v4
         with:
           name: t2s-jhza6-recovery-${{ github.run_id }}-${{ github.run_attempt }}
