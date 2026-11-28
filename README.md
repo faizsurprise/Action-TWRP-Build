@@ -129,6 +129,33 @@ reduce unnecessary graph work. They are intentionally guarded against upstream
 source changes; they should not need to expand every time a new unrelated
 platform test dependency is discovered.
 
+### Validated recovery artifacts
+
+Build 23 (run `46097526475`) **successfully compiled and passed every
+static validation check** at 63,148,048 bytes, including exact JHZA6
+kernel/DTB/DTBO and ramdisk component comparisons. However, that run had
+`publish=false` and no `upload-artifact` step; its temporary IMG was
+not retained as a downloadable Actions artifact.
+
+The workflow now supports an explicit `save_artifact=true` dispatch input
+(default: `false`). When enabled, a successful build archives
+`recovery.img` and `recovery.img.sha256` together in the Actions run for
+14 days, without creating a GitHub release. The user can download the ZIP
+under **Actions → selected run → Artifacts**. As this repository is public
+and the IMG incorporates proprietary JHZA6 components, **assume that
+enabling the artifact may make the IMG accessible to others**. The user
+should choose whether to enable it.
+
+```sh
+gh workflow run "Recovery Build.yml" \
+  -R faizsurprise/Action-TWRP-Build --ref main \
+  -f publish=false -f save_artifact=true
+```
+
+A successful build and byte-for-byte static validation do **not** prove the
+IMG can boot, pass the device's verified-boot chain, or decrypt One UI 7
+FBEv2 data. Do not flash without a device-specific test/restore plan.
+
 ### Commands from Termux
 
 ```sh
