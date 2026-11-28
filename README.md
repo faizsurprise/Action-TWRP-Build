@@ -44,6 +44,29 @@ that general ELF-copy rule for this device build. It does **not** skip the
 existing reference-image SHA-256 or final image/ramdisk content validation.
 The workflow also preflights the flag and the staged ELF kernel-module magic.
 
+### 64 MiB S21+ recovery image budget
+
+Build 20 successfully compiled and assembled `recovery.img`, but the
+`68,288,528`-byte image exceeded the device's fixed `67,108,864`-byte
+recovery partition by `1,179,664` bytes. The partition limit must **not**
+be increased to make an oversized image appear valid.
+
+The t2s-specific `BoardConfig.mk` patch now omits nonessential utilities:
+Bash, Nano, NTFS-3G userspace tools, Magiskboot repack tooling, and additional
+UI languages. It retains encryption/FBE components, Exynos crypto support,
+recovery logging, ADB, and dynamic partition support. These optional features
+will therefore be unavailable in this size-constrained build.
+
+The workflow also switches TeamWin's existing gzip-based ramdisk compression
+to `minigzip -9` for stronger **lossless** compression. It does not change
+the ramdisk format or any staged JHZA6 kernel modules. If the image remains
+oversized, the Actions summary reports the sizes of the image, compressed
+ramdisk, kernel, DTB, and recovery DTBO for further evidence-led reduction.
+
+The final 64 MiB check and independent image-content validation remain
+mandatory. A successful static build does not prove One UI 7 bootability or
+FBEv2 decryption.
+
 This is not a license to stub missing recovery libraries, disable image checks,
 or assume the resulting image boots. Once produced, the recovery image must
 still pass static partition/header checks and must be tested for boot,
