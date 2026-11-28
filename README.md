@@ -79,7 +79,19 @@ directory with the original JHZA6 files and overwrite the matching
 `vendor/firmware/y792_t2.bin`. Other recovery resources are untouched.
 The script fails closed if it encounters unexpected module-source files,
 missing module load entries, or an implausible module count. Regression tests
-run during Actions preflight. The final validator still compares every
+run during Actions preflight. Build 22 compiled the entire `recoveryimage` target again, producing
+`63,148,048` bytes within the 64 MiB recovery partition. Validation then
+detected that `system/etc/twrp.flags` came from the common legacy
+`recovery/root/system/etc/twrp.flags`, not from the S21+ port's patched
+`t2s/recovery/twrp.flags`. The build log also showed the legacy
+`system/bin/postrecoveryboot.sh` being included despite the t2s-specific
+copy filter. To fix these confirmed conflicts, the source mirroring step
+now places the port's exact `twrp.flags` and `manifest.xml` bytes in
+the common copy locations and removes only the legacy post-boot hook
+from the temporary source checkout. These changes do **not** modify the
+upstream pinned repository or bypass final ramdisk validation.
+
+The final validator still compares every
 kernel module and port file in the generated ramdisk byte-for-byte against
 the SHA-256-verified reference inputs. No validation check is bypassed.
 
