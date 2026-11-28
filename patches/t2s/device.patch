@@ -60,7 +60,7 @@ diff --git a/t2s/BoardConfig.mk b/t2s/BoardConfig.mk
 index a6599c4..bea588e 100644
 --- a/t2s/BoardConfig.mk
 +++ b/t2s/BoardConfig.mk
-@@ -19,11 +19,29 @@ BOARD_GROUP_BASIC_SIZE := 11425284096
+@@ -19,11 +19,37 @@ BOARD_GROUP_BASIC_SIZE := 11425284096
  BOARD_GROUP_BASIC_PARTITION_LIST := system odm product vendor
  
  BOARD_PARTITION_LIST := $(call to-upper, $(BOARD_GROUP_BASIC_PARTITION_LIST))
@@ -93,6 +93,14 @@ index a6599c4..bea588e 100644
 +# Android's generic PRODUCT_COPY_FILES ELF gate rejects them; permit this
 +# recovery-only copy while retaining the exact firmware-content checks.
 +BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
++
++# Keep Android crypto, decryption, ADB, logcat, F2FS and logical partitions.
++# Only omit optional size-heavy tools from the standalone 64 MiB recovery.
++TW_EXCLUDE_NANO := true
++TW_EXCLUDE_BASH := true
++TW_EXTRA_LANGUAGES := false
++TW_INCLUDE_NTFS_3G := false
++TW_INCLUDE_REPACKTOOLS := false
 diff --git a/t2s/device.mk b/t2s/device.mk
 index 8f49f8f..46028c8 100644
 --- a/t2s/device.mk
