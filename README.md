@@ -63,6 +63,26 @@ the ramdisk format or any staged JHZA6 kernel modules. If the image remains
 oversized, the Actions summary reports the sizes of the image, compressed
 ramdisk, kernel, DTB, and recovery DTBO for further evidence-led reduction.
 
+### Verified JHZA6 kernel-module provenance
+
+Build 21 completed the entire `recoveryimage` target and produced a
+`62,844,944`-byte image, within the `67,108,864`-byte partition limit.
+Its independent ramdisk validator correctly rejected a byte mismatch in
+`lib/modules/cdc_ncm.ko`. The pinned device tree contains an older
+`t2s/recovery/root/lib/modules` collection (261 kernel modules and
+metadata), while the verified JHZA6 image stages 270 modules under
+`t2s/jhza6-root/lib/modules`. Both paths can feed ramdisk copy rules.
+
+After verifying the private reference image SHA-256, the build runs
+`scripts/t2s-sync-jhza6-ramdisk.py` to replace the legacy t2s module
+directory with the original JHZA6 files and overwrite the matching
+`vendor/firmware/y792_t2.bin`. Other recovery resources are untouched.
+The script fails closed if it encounters unexpected module-source files,
+missing module load entries, or an implausible module count. Regression tests
+run during Actions preflight. The final validator still compares every
+kernel module and port file in the generated ramdisk byte-for-byte against
+the SHA-256-verified reference inputs. No validation check is bypassed.
+
 The final 64 MiB check and independent image-content validation remain
 mandatory. A successful static build does not prove One UI 7 bootability or
 FBEv2 decryption.
